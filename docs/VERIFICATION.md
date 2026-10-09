@@ -123,6 +123,15 @@ the repository file `docs/PUBLICATION.json`, deliberately outside the ZIP to
 avoid recursively embedding an archive's own checksum. The adjacent
 `.zip.sha256` file is another direct archive checksum record.
 
+The current CI distribution procedure is in
+[GITHUB_INTEGRATION](GITHUB_INTEGRATION.md#download-and-verify-on-a-separate-windows-11-desktop).
+Only a successful main-branch push that passes all validation and privacy gates
+may upload the portable ZIP and its checksum receipt, with 14-day retention and
+the tested commit SHA in the artifact name. This historical local report does
+not establish that such an artifact exists. CI documentation changes can change
+the portable archive digest; verify the downloaded ZIP against its own adjacent
+receipt, then verify extracted DAC.exe against its internal SHA256SUMS.txt.
+
 `tools/package-manifest.json` declares exactly 19 archive files: DAC.exe, four
 root product/license documents, eleven reviewed Markdown documents, the Fujin
 license, a fixed-field PE report and SHA256SUMS.txt. Packaging and CMake installation
