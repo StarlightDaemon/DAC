@@ -90,6 +90,9 @@ outside the portable binary package. Automated Windows tests create a private
 noninteractive desktop; they never switch to it. They use owned fixture programs
 and simulated power operations, not downloaded/custom savers or physical DDC.
 
+The validation-only [Windows CI workflow](docs/GITHUB_INTEGRATION.md#windows-ci-foundation)
+reproduces the pinned build, tests, analysis and package checks on GitHub Actions.
+
 The portable package uses the explicit file list in `tools/package-manifest.json`.
 Raw build/test logs and local validation receipts remain outside the package.
 
