@@ -1,14 +1,15 @@
-# Proposed remote integration (not executed)
+# GitHub integration status and pending acceptance gates
 
-1. Review the publication commits, feature parity, security findings, package
-   checksums, and fresh validation in [VERIFICATION](VERIFICATION.md).
-2. With explicit authority, push only `feature/standalone-publication` to the
-   existing `https://github.com/StarlightDaemon/DAC.git` origin and open a
-   development PR.
-3. Separately implement and review a validation-only CI workflow as described
-   below. Review source provenance and the Fujin consumer-ledger proposal.
-   No legacy repository history is merged.
-4. With separate review/merge authority, merge the PR into DAC `main`.
+1. The sanitized standalone implementation, feature parity, security findings,
+   package checksums and local validation are documented in [VERIFICATION](VERIFICATION.md).
+2. The authorized `feature/standalone-publication` branch is published at
+   `https://github.com/StarlightDaemon/DAC.git`; [draft PR #1](https://github.com/StarlightDaemon/DAC/pull/1)
+   targets `main`. No legacy repository history was merged.
+3. Validation-only Windows x64 CI was implemented and passed on both the
+   [branch push](https://github.com/StarlightDaemon/DAC/actions/runs/37877951396)
+   and [PR synthetic merge](https://github.com/StarlightDaemon/DAC/actions/runs/37877951558).
+   Source provenance and Fujin consumer-ledger registration remain separate.
+4. With separate review/merge authority, decide whether to merge PR #1 into DAC `main`.
 5. Qualify the candidate on an operator-approved isolated visible Windows 11 x64
    desktop: per-monitor wake, all-covered recovery, DPI, HDR, media, controller,
    trusted saver visuals, real tray/shell/startup, and session transitions.
@@ -17,8 +18,9 @@
 7. Decide signing and prerelease naming; publish the first standalone prerelease
    only after explicit tag/release/upload authority.
 
-This sequence does not itself authorize a push, remote ref mutation, PR, merge,
-release, live installation, startup registration, or physical hardware operation.
+The published branch and draft PR were separately authorized. This document does
+not authorize a merge, release, live installation, startup registration, physical
+hardware operation, or any additional remote mutation.
 
 ## Windows CI foundation
 
@@ -118,14 +120,14 @@ no cache is used in the hosted workflow.
 
 ### Acceptance and remaining prerequisites
 
-Local results and syntax checks are not a GitHub execution result. The first
-authorized push must produce a successful hosted run, including private desktop
-creation, Microsoft signature trust/network availability, pinned public Fujin
-availability and runtime package determinism. GitHub Actions must be enabled and
-allow the pinned checkout action and hosted Windows runner. Fork PR execution may
-require maintainer approval under repository settings. The stable check name is
-`Windows x64 validation`; branch-protection settings are a separate decision after
-the first verified run.
+Local results and syntax checks alone are not GitHub execution evidence. Hosted
+Windows x64 validation succeeded on both the branch push and PR synthetic merge
+([push run](https://github.com/StarlightDaemon/DAC/actions/runs/37877951396),
+[PR run](https://github.com/StarlightDaemon/DAC/actions/runs/37877951558)).
+The runs exercised pinned inputs and the hosted runner's bootstrap and tests.
+Future revisions require their own fresh CI results. Fork PR execution may require
+maintainer approval under repository settings. The stable check name is
+`Windows x64 validation`; required-check/branch-protection settings remain pending.
 
 The hosted Windows Server image provides automation coverage, not physical
 Windows 11 monitor qualification. Signing, releases, deployment, installation,
@@ -146,5 +148,6 @@ Cached pinned archives were reverified and extracted in a fresh ignored local
 fixture; Microsoft signatures, readiness probe, payload sizes and Fujin checks
 passed. Re-extraction into the already-used local compiler directory hit a DLL
 lock held by a Microsoft compiler telemetry process. No process was interrupted.
-The fresh hosted job bootstraps before compilation. Network downloads and
-GitHub-hosted execution remain unverified until an authorized push and run.
+The hosted runs successfully bootstrapped before compilation, establishing CI
+execution in the tested GitHub runner environment. This does not qualify
+physical desktop behavior or eliminate the documented toolchain-manifest caveat.

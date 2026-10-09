@@ -58,6 +58,14 @@ machine, retain a known-working recovery route, and use a fresh DAC-specific
 profile with automation and hardware off. Approve physical display-power testing
 separately. This checklist does not itself grant execution authority.
 
-Distribution decisions still pending: Authenticode signing, CI execution on a
-clean runner, public prerelease naming and publication, Fujin consumer-ledger
-registration, and broader OS/architecture support. No `1.0.0` claim is made.
+Independent Windows x64 CI has now run successfully on a clean GitHub-hosted
+runner: [branch push](https://github.com/StarlightDaemon/DAC/actions/runs/37877951396)
+and [PR synthetic-merge validation](https://github.com/StarlightDaemon/DAC/actions/runs/37877951558).
+Both runs completed successfully, including Release and Debug 27/27 suites,
+static analysis, pinned-input checks, reproducibility, packaging and privacy audit.
+These automated results do not qualify visible desktops or physical monitors.
+Required-check/branch-protection configuration remains a separate decision.
+
+Distribution decisions still pending: Authenticode signing, public prerelease
+naming and publication, Fujin consumer-ledger registration, and broader OS/
+architecture support. No `1.0.0` claim is made.
