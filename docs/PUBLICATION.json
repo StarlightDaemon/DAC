@@ -1,0 +1,492 @@
+{
+  "formatVersion": 1,
+  "product": "DAC",
+  "productVersion": "0.1.0-dev",
+  "repository": "https://github.com/StarlightDaemon/DAC.git",
+  "localBranch": "feature/standalone-publication",
+  "verificationReport": "docs/VERIFICATION.md",
+  "snapshot": {
+    "implementationCommit": "47a6329961d14f62840378419b67e0606b7f1739",
+    "parentCommit": "48f8d00b1eb2d46a6b0629e339d2716b4a0b76d0",
+    "scope": "Validated implementation, documentation, tooling and package before adding this repository-only summary.",
+    "inventoryFiles": 49,
+    "summaryExcludedFromPackage": true,
+    "finalCommitAudit": "After committing this summary, audit every outgoing commit and reachable file blob again; report the final revision separately to avoid a self-referential commit hash."
+  },
+  "history": {
+    "strategy": "Fresh publication commits directly above the original main commit; explicit source/documentation allowlist transfer.",
+    "transferredFiles": 44,
+    "originalDevelopmentAncestorsExcluded": 3,
+    "originalDevelopmentHistoryUnchanged": true,
+    "authorName": "StarlightDaemon",
+    "authorEmail": "23347919+StarlightDaemon@users.noreply.github.com"
+  },
+  "toolchain": {
+    "msvc": "19.44.35229",
+    "windowsSdk": "10.0.26100.0",
+    "cmake": "3.31.6-msvc6",
+    "ninja": "1.12.1",
+    "powershell": "7.6.5",
+    "git": "2.55.0.windows.2",
+    "zipRuntime": ".NET 10.0.11",
+    "metadataCaveat": "Microsoft manifest metadata digest discrepancy remains documented in docs/TOOLCHAIN.md; this is not recorded as a passed digest check."
+  },
+  "fujin": {
+    "tag": "v0.1.0",
+    "commit": "c653620262ef68fa8d58504b6c47bb21aadc5aa5",
+    "annotatedTagObject": "741af7c946161ff15bc06da07ad8cd233554b8b1",
+    "integrityCasesPerConfiguration": 17,
+    "originalDependencyRepositoryUnchanged": true
+  },
+  "sourceEquivalence": {
+    "applicationFiles": 4,
+    "testFiles": 6,
+    "resources": 2,
+    "allReviewedGitBlobsUnchanged": true,
+    "functionalityTestsAndHardeningPreserved": true
+  },
+  "validation": {
+    "regression": [
+      {
+        "configuration": "release",
+        "tests": 27,
+        "failures": 0,
+        "skipped": 0,
+        "disabled": 0,
+        "result": "passed"
+      },
+      {
+        "configuration": "debug",
+        "tests": 27,
+        "failures": 0,
+        "skipped": 0,
+        "disabled": 0,
+        "result": "passed"
+      }
+    ],
+    "staticAnalysis": {
+      "commandReference": "docs/STATIC_ANALYSIS.md",
+      "analyzer": "MSVC /analyze /analyze:only",
+      "exitCode": 0,
+      "warnings": 0,
+      "xmlDefects": 0
+    },
+    "packagingRegression": {
+      "checks": 7,
+      "result": "passed"
+    },
+    "cmakeLocalStaging": {
+      "declaredInputFiles": 17,
+      "exactManifestInputSet": true,
+      "liveInstallation": false
+    },
+    "independentReleaseBuild": {
+      "directories": 2,
+      "byteIdenticalExecutable": true
+    },
+    "independentPackaging": {
+      "stages": 2,
+      "byteIdenticalArchive": true,
+      "fixedTimestamps": true,
+      "ordinalEntryOrdering": true,
+      "writeBufferBytes": 131072
+    },
+    "pe": {
+      "architecture": "AMD64",
+      "subsystem": "Windows GUI",
+      "ASLR": true,
+      "DEP": true,
+      "highEntropyVA": true,
+      "CFG": true,
+      "imports": [
+        "SHELL32.dll",
+        "USER32.dll",
+        "GDI32.dll",
+        "ole32.dll",
+        "WTSAPI32.dll",
+        "COMDLG32.dll",
+        "ADVAPI32.dll",
+        "POWRPROF.dll",
+        "dwmapi.dll",
+        "dxva2.dll",
+        "gdiplus.dll",
+        "KERNEL32.dll"
+      ],
+      "windhawkDependency": false,
+      "vcRuntimeDllDependency": false
+    },
+    "executionBoundary": "Regression execution used private noninteractive desktops and local test profiles; no physical monitor operations, live startup registration or installation."
+  },
+  "artifacts": {
+    "executable": {
+      "path": "build/release/DAC.exe",
+      "bytes": 682496,
+      "sha256": "f4c7259914c613b8bd0ddf3a8eccfde41ba43bd808eea4bcc2730f1ba6243f4a"
+    },
+    "archive": {
+      "path": "packages/DAC-0.1.0-dev-windows-x64.zip",
+      "bytes": 377169,
+      "sha256": "bf6736b95bc6d303e19e6f5d4312d93d7099943d0205d06db13528efb99e8ca9",
+      "entries": 19,
+      "hashedPayloadFiles": 18,
+      "expandedBytes": 777193,
+      "exactAllowlist": true,
+      "allPayloadHashesMatch": true,
+      "extractedContentAudited": true,
+      "canonicalEntryListSha256": "90000e1852baf297eb9c11b3ee6f1f5161c17c9b59eab2238b32c5132c6e8b22",
+      "entryRoot": "DAC-0.1.0-dev-windows-x64",
+      "relativeEntries": [
+        "CHANGELOG.md",
+        "DAC.exe",
+        "LICENSE",
+        "PE-VERIFICATION.json",
+        "README.md",
+        "SHA256SUMS.txt",
+        "THIRD_PARTY_NOTICES.md",
+        "docs/ARCHITECTURE.md",
+        "docs/FEATURE_PARITY.md",
+        "docs/FUJIN.md",
+        "docs/GITHUB_INTEGRATION.md",
+        "docs/QUALIFICATION.md",
+        "docs/SECURITY.md",
+        "docs/SECURITY_REVIEW.md",
+        "docs/SOURCE_INVENTORY.md",
+        "docs/STATIC_ANALYSIS.md",
+        "docs/TOOLCHAIN.md",
+        "docs/VERIFICATION.md",
+        "licenses/Fujin-LICENSE"
+      ]
+    }
+  },
+  "privacyAuditSnapshot": {
+    "revision": "47a6329961d14f62840378419b67e0606b7f1739",
+    "outgoingCommits": 1,
+    "uniqueReachableBlobs": 49,
+    "newBlobsRelativeToBase": 48,
+    "extractedPackageFiles": 19,
+    "findings": 0,
+    "result": "passed",
+    "commitMessagesAndIdentitiesScanned": true,
+    "executableAsciiAndUtf16StringsScanned": true,
+    "unexpectedBinaryPayloads": 0,
+    "oversizedRepositoryPayloads": 0,
+    "privateDevelopmentAncestorsExcluded": 3,
+    "rawLogsAndDetailedReceipts": "Ignored local storage only; neither tracked nor packaged.",
+    "syntheticRedactionFixture": "One exact fixture in tests/platform.cpp is classified as synthetic.",
+    "limitation": "Pattern scans and manual review complement each other; neither proves absence of every possible secret."
+  },
+  "qualificationStillOpen": [
+    "Physical all-covered wake behavior and input-to-photon latency.",
+    "Visible native Edit painting, accessibility and assistive technology.",
+    "Explorer tray behavior, real startup, real screensavers and restart/session behavior.",
+    "Mixed DPI/HDR, physical DDC and monitor/driver compatibility.",
+    "Cold resource retention attribution and long-duration lifecycle qualification.",
+    "Code signing and release qualification."
+  ],
+  "authority": {
+    "remoteRefsModified": false,
+    "pullRequestCreated": false,
+    "workflowAdded": false,
+    "workflowRun": false,
+    "tagOrReleaseCreated": false,
+    "installationPerformed": false,
+    "physicalMonitorOperation": false,
+    "disposition": "Local verification only; hold before push or pull request."
+  },
+  "implementationFileInventory": [
+    {
+      "path": ".gitattributes",
+      "gitBlob": "837747368d5a24edfc90df585dfae1f442d7af3c",
+      "sha256": "46c02d44c59a1ef670caebf526a32d72ce0a09d4cbb7bbceed26be5ce237edd6",
+      "bytes": 71
+    },
+    {
+      "path": ".gitignore",
+      "gitBlob": "b2951cea391ce6b7ef9bdda8a7f32fb94cdf0d1f",
+      "sha256": "0b2138fb058c654a5caa7443cf673e2b6a3f601ebaae425e01884db7e8a5e0f2",
+      "bytes": 145
+    },
+    {
+      "path": "CHANGELOG.md",
+      "gitBlob": "fd3231e410799d08b6aa8c35cfd4c15a052f2ebf",
+      "sha256": "f2ba10cdb9681b7bcaf691145f8cd69070c8d256fdd2f2fc47e75842624fad58",
+      "bytes": 908
+    },
+    {
+      "path": "cmake/Fujin.cmake",
+      "gitBlob": "a25d8f22b4320c5d9608fd845aedb585eed7ac2b",
+      "sha256": "87acb07c4fcf3027ae8b04dc4b62ce4fb5e52ac47f9f7e3a42eca7ab2ab05a04",
+      "bytes": 1682
+    },
+    {
+      "path": "CMakeLists.txt",
+      "gitBlob": "c5d56620d2d276bc1369088d2082dea785faa8d2",
+      "sha256": "792258d0ebdf702fb638d5e0d8e5e19f5e43c3f7d2238febb0076060643be122",
+      "bytes": 5728
+    },
+    {
+      "path": "CMakePresets.json",
+      "gitBlob": "c9c055838e6b1eef5a1c9fe0dcfa3f954c02cd3c",
+      "sha256": "c528a435792cb02b9b07610067e47a2413ed34364b2eabfaf9abda07a65a9018",
+      "bytes": 789
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "gitBlob": "2d814cb413f4ef04718837dd0c8b33cf5c95a588",
+      "sha256": "f47e0f5f071f740c6360766e3a55195d8670f3665e7d0a923cb859e01556b63f",
+      "bytes": 4119
+    },
+    {
+      "path": "docs/FEATURE_PARITY.md",
+      "gitBlob": "d6b69e4b3ea42718614d7dd65cbb0e27acdfc4f6",
+      "sha256": "432d11cd54188fc69bb2eff6acc561a767257070b1820e3d5828ab3611e5a8e3",
+      "bytes": 25784
+    },
+    {
+      "path": "docs/FUJIN.md",
+      "gitBlob": "c269b15f511e71d712000da3274d9719eac62381",
+      "sha256": "e2963543861caca22031c6984d59496434d43d8dee4155257580fa0d6305d9f8",
+      "bytes": 5401
+    },
+    {
+      "path": "docs/GITHUB_INTEGRATION.md",
+      "gitBlob": "721f83da8df99afd25dd211da65c6cbe76b5b403",
+      "sha256": "4249b231268a771ca6ec7ba1101bfb4ab71f27badfb7bc86a1370beafef3b98c",
+      "bytes": 1963
+    },
+    {
+      "path": "docs/QUALIFICATION.md",
+      "gitBlob": "7d4ac206b610422ae754675fc45d251b96807e35",
+      "sha256": "714790802b15b7667dcea34006629703dca663dab09837e45511916e29cfbe80",
+      "bytes": 6494
+    },
+    {
+      "path": "docs/SECURITY_REVIEW.md",
+      "gitBlob": "57bbc0c15cd8c88919ca163bace4ff8e6530d4e6",
+      "sha256": "4e97d745ef8825f85778b838dedac1f975aae6533211a6f0e60029d70ea03b02",
+      "bytes": 11548
+    },
+    {
+      "path": "docs/SECURITY.md",
+      "gitBlob": "1b1a718addef51d68574acc9b692a5524a08dee9",
+      "sha256": "6310cb440f9350ea2866cc3139a40a317051594665dc0a0a28a38b59bb505ba2",
+      "bytes": 4864
+    },
+    {
+      "path": "docs/SOURCE_INVENTORY.md",
+      "gitBlob": "dc78010f029cb14c52bd730283033b13633fd9e1",
+      "sha256": "3b30f05f3a714f7a373cad4cb0bdeb32c605bacf772ffd0b96782d159c0f3ed8",
+      "bytes": 4605
+    },
+    {
+      "path": "docs/STATIC_ANALYSIS.md",
+      "gitBlob": "763366f67a25d07c87d5b72ee78c80e54e2cd54f",
+      "sha256": "7171b4242134e01a88a5d76f5a5c5b2e960a24fb5531ff69a6c7d129a1233ff6",
+      "bytes": 3970
+    },
+    {
+      "path": "docs/TOOLCHAIN.md",
+      "gitBlob": "a65b56ab02e749920ff85452402f94a942929400",
+      "sha256": "e943d84304504ca9f71be692f443b52ccff4595c6f595215ed0cfd9157d8f98a",
+      "bytes": 4524
+    },
+    {
+      "path": "docs/VERIFICATION.md",
+      "gitBlob": "e036b3a50952d362c3dc4510a06a726ebb61a8e8",
+      "sha256": "ab9c95d1e6611ba4d5aaadc5c6c93f67f0bcadb2cde1c622a9a1630ae0cbd5ae",
+      "bytes": 9451
+    },
+    {
+      "path": "LICENSE",
+      "gitBlob": "9f5deb2403a20bef02b9533300d6ded785d355b6",
+      "sha256": "421cb416003aea020c6de13a2c0787fbbf5876d4cd22f7abaabbfbd1adeacf27",
+      "bytes": 1072
+    },
+    {
+      "path": "README.md",
+      "gitBlob": "6eabe5761849d941f746af745860ea4650f03471",
+      "sha256": "d2332d785e7a7bacd8649a5e45b3b3b426d61dd9df425ba3f14212022fb3796e",
+      "bytes": 5613
+    },
+    {
+      "path": "resources/dac.manifest",
+      "gitBlob": "5ef97e885f3e822f7fc9ebb6351c7b61f77c385a",
+      "sha256": "1c7e2bcc78235ad65f4e171c9254ccdb7d547b1c30798b3b4f72878dc494086f",
+      "bytes": 1012
+    },
+    {
+      "path": "resources/dac.rc",
+      "gitBlob": "99978bc083bc130158d55f5e01737c1023524625",
+      "sha256": "e136a0631d795006c42807f3b8b96f965ae17dcbe9f46f0b4dbbf1458bf263bc",
+      "bytes": 780
+    },
+    {
+      "path": "src/dac.cpp",
+      "gitBlob": "b6d1b8ff3d771d87d7d42f6a4692a1bae5a56183",
+      "sha256": "66744797d7c6f2c4398b45cb03cd42774f9d3916c877b894d0ca7ba832d19833",
+      "bytes": 223
+    },
+    {
+      "path": "src/platform.hpp",
+      "gitBlob": "9d19ee12e97f07497bf30da01c77959b3bc342b1",
+      "sha256": "ab1e0a2050eae692f298a576bfc386952af60a3cd61e8f6d3727e82ac5e2da3d",
+      "bytes": 199222
+    },
+    {
+      "path": "src/policy.hpp",
+      "gitBlob": "32d282c8bf0af69167818cebcbdf977dfeddd95b",
+      "sha256": "4900bcd89abaeb4cbaa7af974d40fa5d752fbac525749ddac91602dcf9a637fc",
+      "bytes": 37424
+    },
+    {
+      "path": "src/standalone.cpp",
+      "gitBlob": "6efe35668cfabe0be594ed839da915dc851a2004",
+      "sha256": "51603daaa75d2eba2719dcce66937ecd2785a32e8c521a4108136bd585cc8759",
+      "bytes": 7785
+    },
+    {
+      "path": "tests/host-lifecycle.cpp",
+      "gitBlob": "16489da7c917acce3f7996625619df1e2a7b719b",
+      "sha256": "853daa92c521d9da6ca040fdeb47e69f66904d8152f8d938d9a1da68898c605e",
+      "bytes": 4859
+    },
+    {
+      "path": "tests/nativewake-input-fixture.h",
+      "gitBlob": "9302fd4f7cecf74f6b634c3babc577e16dadf8f1",
+      "sha256": "40bdb37ed23c2a0e272f2a7963d60556738d91361b91ca67d866456b34dfca2d",
+      "bytes": 2115
+    },
+    {
+      "path": "tests/nativewake-negative.cpp",
+      "gitBlob": "c557a0ac2a72db5ce1fc4620a3cd7a9fd23a2b2c",
+      "sha256": "f09c3a7d252e70647261879f9c47e635567d980e45087c54e91343de6de51486",
+      "bytes": 2436
+    },
+    {
+      "path": "tests/platform.cpp",
+      "gitBlob": "c5c5a2d35104b42ed59b7c747a842d1089e6c554",
+      "sha256": "3c5d907482899c54aef880abf420699bf11c1628d78d3eabfe84767da9225020",
+      "bytes": 117509
+    },
+    {
+      "path": "tests/policy.cpp",
+      "gitBlob": "31bc1a0b8d36b9d53a6de69351ab3245a86e25bf",
+      "sha256": "fd5fadc92a3960758e52be0209db31252995346fa6db79c6ffcdd4b1c78cfd98",
+      "bytes": 32363
+    },
+    {
+      "path": "tests/test-runner.cpp",
+      "gitBlob": "3417403c8f893dd0ab60b71cd394f5684651b16e",
+      "sha256": "f5cdd08db68086bb358d5639b63fbfe051f1ddc226dc77825d72eb4b7856af4a",
+      "bytes": 8474
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "gitBlob": "87c48ba74d9647d1b76cae287427fea942a357bf",
+      "sha256": "a5569a7e5d3c86841d029317a73f7ec7f49c5c73e217632b9e520fc931dc9272",
+      "bytes": 1255
+    },
+    {
+      "path": "third_party/fujin/LICENSE",
+      "gitBlob": "407ffcd63fc50b9eca16a4a8f550d26056e69242",
+      "sha256": "17b7e5c75faf40b5b27237815f382dfa81be3e86a3e68c11844bcc2a422daab9",
+      "bytes": 1072
+    },
+    {
+      "path": "third_party/fujin/lock.json",
+      "gitBlob": "b570e25161249b65a2e105283981e95ea6d81219",
+      "sha256": "2cb2b65b0ce2e79d15535e62a2c08dd37b86cb5eefd9b475bccdfd5b3b8eaf06",
+      "bytes": 832
+    },
+    {
+      "path": "tools/audit-publication.ps1",
+      "gitBlob": "971f600d67c5bf1ddc21fa5499aaa926966c5c9d",
+      "sha256": "e442bea483b5bd7a962d4ca68ff386ed39a18f44688acd3c383e6c46efba97f1",
+      "bytes": 21217
+    },
+    {
+      "path": "tools/bootstrap-fujin.ps1",
+      "gitBlob": "839aa39a7189077cd737b5aa764aecd44ff2263a",
+      "sha256": "c81f66604fc70e906b35c0dc8c2f16ac6e0db3cdf675b41e10d8a66c6581376d",
+      "bytes": 1977
+    },
+    {
+      "path": "tools/bootstrap-toolchain.ps1",
+      "gitBlob": "0c27e8b01d51f27cf638635a92e3412099ed5a35",
+      "sha256": "d3c5a7bf0e7d03d156cbfa15cdbe41ab58c9524767b9df752a875d9e9712adcc",
+      "bytes": 6783
+    },
+    {
+      "path": "tools/build.ps1",
+      "gitBlob": "a02f707d76d4dc5835ea2fea650b989ba0577333",
+      "sha256": "10b1d47b24e0bade42df2fc0e5d8a32427f2106ff8531e1e844200ceaaa07557",
+      "bytes": 830
+    },
+    {
+      "path": "tools/Fujin.Common.ps1",
+      "gitBlob": "60747419b0a6b22147ce12981e918ad9f4a28b67",
+      "sha256": "ed7e4034086b47d76795ea5196295087e31ab08baf76680decdcdc1f0f18d8fa",
+      "bytes": 6881
+    },
+    {
+      "path": "tools/generate-theme.ps1",
+      "gitBlob": "ada9128077a0fd06ccb3a3e8d43d9939de4160e7",
+      "sha256": "3f9864119f58317d12cca4371ea9456690db3e2f90cb80c3c2d0eb44dde40005",
+      "bytes": 2614
+    },
+    {
+      "path": "tools/package-manifest.json",
+      "gitBlob": "3215121a134b93e4a4e028d86b87b04b07d6d150",
+      "sha256": "d837acfdfe3af0b3a1c15c53b9a70e99ef8827d4fb832c0023795d8668dda63a",
+      "bytes": 2168
+    },
+    {
+      "path": "tools/Package.Common.ps1",
+      "gitBlob": "291b575f735775627fe3596ceb40d7885646bbb8",
+      "sha256": "d2e70a7ac6f8fe5fc61176ea43b50a053c779bc0ea3b8203ce5e3a6b45babe93",
+      "bytes": 3853
+    },
+    {
+      "path": "tools/package.ps1",
+      "gitBlob": "a402a42d9dae79bb881b3132aab6f52138e5b517",
+      "sha256": "4568231c64a1e75d99ee2b527576050b9ea496cfeb19cd5185ee249633ab9953",
+      "bytes": 3740
+    },
+    {
+      "path": "tools/test-package.ps1",
+      "gitBlob": "b305d2ce620af4380c878b570a33b4f481abea90",
+      "sha256": "8bb9f7db1846a5054290ccb654b452100304e7214ded2e3785e9bd9fcec0db5f",
+      "bytes": 6359
+    },
+    {
+      "path": "tools/test-theme.ps1",
+      "gitBlob": "0d064d78c9973fdce35c594db479e57d8cb36a6b",
+      "sha256": "8ccf5964d3b00e27af3f2e30a237e91fb94b242e6577b31313a8b452caeda27f",
+      "bytes": 6105
+    },
+    {
+      "path": "tools/toolchain-lock.json",
+      "gitBlob": "420d81edc30075ef6b2d5493b16514f4c374a804",
+      "sha256": "98819d9a6b90ebfccf7b83f972a23ecd49ecee5f2deb0b0bb1f777606896b66a",
+      "bytes": 22089
+    },
+    {
+      "path": "tools/use-toolchain.ps1",
+      "gitBlob": "bc0baf8a1ee40e5bcd55a1c3d02bcab178ff05a3",
+      "sha256": "57d04b9d0e7a5b7f15f8c13020c5c68370ecf902500a354ec25e2f5d38fc77a5",
+      "bytes": 1371
+    },
+    {
+      "path": "tools/verify-package.ps1",
+      "gitBlob": "3abde437862dee7b5808030da19f0c9285982b8e",
+      "sha256": "27cba10501cc3d432266e1d1cbc3b1fb03bc1845bda81d3594c09b046491a442",
+      "bytes": 15811
+    },
+    {
+      "path": "tools/verify-pe.ps1",
+      "gitBlob": "a8c7e7447828d3d1680f97dd2f619b6f4270174c",
+      "sha256": "19685874fdd05a4c4c88ca1c163d692d4cd68d0507fd46a690a7c1b0f01b7cf0",
+      "bytes": 2575
+    }
+  ]
+}
