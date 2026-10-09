@@ -1,0 +1,25 @@
+{
+  "formatVersion": 1,
+  "repository": "https://github.com/StarlightDaemon/Fujin.git",
+  "tag": "v0.1.0",
+  "tagObject": "741af7c946161ff15bc06da07ad8cd233554b8b1",
+  "commit": "c653620262ef68fa8d58504b6c47bb21aadc5aa5",
+  "license": "MIT",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "17b7e5c75faf40b5b27237815f382dfa81be3e86a3e68c11844bcc2a422daab9",
+      "gitBlob": "407ffcd63fc50b9eca16a4a8f550d26056e69242"
+    },
+    {
+      "path": "dist/tokens-resolved.json",
+      "sha256": "4773a3fe8fa035f3661d1f91be54d91d6b4777e0f38422d7565b580640f69ec1",
+      "gitBlob": "68e9260fde032a1b85fb08ce73d3fffce0ae59bf"
+    },
+    {
+      "path": "dist/tokens.css",
+      "sha256": "9ee628f3b08871c5263ed4badf268f8c245b73155254b8abebdb9bfdbcc61ddc",
+      "gitBlob": "16bdd1eec45ffe96f440b0af9484b1ef21f84383"
+    }
+  ]
+}

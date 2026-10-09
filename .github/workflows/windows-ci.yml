@@ -1,0 +1,58 @@
+name: Windows CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, feature/standalone-publication]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  windows-x64:
+    name: Windows x64 validation
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Mask runner paths
+        timeout-minutes: 1
+        run: |
+          foreach ($path in @($env:GITHUB_WORKSPACE, $env:RUNNER_TEMP, $env:USERPROFILE)) {
+            if ($path) {
+              Write-Output "::add-mask::$path"
+              Write-Output ('::add-mask::' + $path.Replace('\', '/'))
+            }
+          }
+      - name: Checkout event revision
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: 5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          show-progress: false
+      - name: Verify pinned build inputs
+        timeout-minutes: 20
+        run: ./tools/ci-windows.ps1 -Phase Bootstrap
+      - name: Build and test Release
+        timeout-minutes: 10
+        run: ./tools/ci-windows.ps1 -Phase Release
+      - name: Build and test Debug
+        timeout-minutes: 10
+        run: ./tools/ci-windows.ps1 -Phase Debug
+      - name: Analyze production source
+        timeout-minutes: 10
+        run: ./tools/ci-windows.ps1 -Phase Analyze
+      - name: Verify reproducibility and package integrity
+        timeout-minutes: 10
+        run: ./tools/ci-windows.ps1 -Phase Package
+      - name: Audit publication privacy
+        timeout-minutes: 10
+        run: ./tools/ci-windows.ps1 -Phase Audit

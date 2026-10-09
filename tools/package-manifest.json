@@ -1,0 +1,99 @@
+{
+  "formatVersion": 1,
+  "archiveRoot": "DAC-0.1.0-dev-windows-x64",
+  "files": [
+    {
+      "kind": "build",
+      "source": "DAC.exe",
+      "path": "DAC.exe"
+    },
+    {
+      "kind": "repository",
+      "source": "README.md",
+      "path": "README.md"
+    },
+    {
+      "kind": "repository",
+      "source": "LICENSE",
+      "path": "LICENSE"
+    },
+    {
+      "kind": "repository",
+      "source": "CHANGELOG.md",
+      "path": "CHANGELOG.md"
+    },
+    {
+      "kind": "repository",
+      "source": "THIRD_PARTY_NOTICES.md",
+      "path": "THIRD_PARTY_NOTICES.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/ARCHITECTURE.md",
+      "path": "docs/ARCHITECTURE.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/FEATURE_PARITY.md",
+      "path": "docs/FEATURE_PARITY.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/FUJIN.md",
+      "path": "docs/FUJIN.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/GITHUB_INTEGRATION.md",
+      "path": "docs/GITHUB_INTEGRATION.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/QUALIFICATION.md",
+      "path": "docs/QUALIFICATION.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/SECURITY.md",
+      "path": "docs/SECURITY.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/SECURITY_REVIEW.md",
+      "path": "docs/SECURITY_REVIEW.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/SOURCE_INVENTORY.md",
+      "path": "docs/SOURCE_INVENTORY.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/STATIC_ANALYSIS.md",
+      "path": "docs/STATIC_ANALYSIS.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/TOOLCHAIN.md",
+      "path": "docs/TOOLCHAIN.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/VERIFICATION.md",
+      "path": "docs/VERIFICATION.md"
+    },
+    {
+      "kind": "repository",
+      "source": "third_party/fujin/LICENSE",
+      "path": "licenses/Fujin-LICENSE"
+    },
+    {
+      "kind": "generated",
+      "path": "PE-VERIFICATION.json"
+    },
+    {
+      "kind": "generated",
+      "path": "SHA256SUMS.txt"
+    }
+  ]
+}
