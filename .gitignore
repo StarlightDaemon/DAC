@@ -1,0 +1,16 @@
+/.tools/
+/.deps/
+/build/
+/packages/
+/out/
+/evidence/
+/receipts/
+/.cache/
+/.codex/
+/.agents/
+*.user
+*.log
+*.xml
+*.zip
+*.zip.sha256
+*receipt*.json
