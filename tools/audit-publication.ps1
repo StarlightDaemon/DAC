@@ -25,6 +25,7 @@ param(
     [switch]$IncludeWorktree,
     [string]$PackageDirectory = '',
     [string]$PackageEntryList = '',
+    [string]$Installer = '',
     [string]$Report = 'out/private/publication-audit.json',
     [long]$MaxFileBytes = 16MB
 )
@@ -40,7 +41,22 @@ $utf8 = [Text.UTF8Encoding]::new($false, $true)
 $findings = [Collections.Generic.List[object]]::new()
 $inventory = [Collections.Generic.List[object]]::new()
 $commits = [Collections.Generic.List[object]]::new()
-$statistics = [ordered]@{ genericWindowsOsPathReferences=0; syntheticRedactionFixtures=0; executableAsciiStrings=0; executableUtf16Strings=0 }
+$statistics = [ordered]@{ genericWindowsOsPathReferences=0; syntheticRedactionFixtures=0; executableAsciiStrings=0; executableUtf16Strings=0; reviewedPublicVendorTokens=0 }
+$reviewedVendorToken=$false
+if ($Installer) {
+    # One complete public ASCII token collides with a runtime identity on some
+    # hosts. Accept only its exact hash, only in the installer ASCII scan, only
+    # after confirming the unchanged runtime from the verified upstream archive.
+    # Every private path, credential and other identity rule remains unchanged.
+    $vendor=Join-Path $repository '.tools/inno-7.1.0/Setup.e64'
+    if ((Get-FileHash -LiteralPath $vendor).Hash.ToLowerInvariant() -cne 'ad12a06d09afefa9d1283c6616ef4d56289dc14a7137a12b24653a12637216bb') { throw 'Reviewed vendor runtime identity changed.' }
+    $vendorStrings=[regex]::Matches([Text.Encoding]::Latin1.GetString([IO.File]::ReadAllBytes($vendor)),'[ -~]{4,}')
+    foreach ($vendorString in $vendorStrings) {
+        $tokenHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::Latin1.GetBytes($vendorString.Value))).ToLowerInvariant()
+        if ($tokenHash -ceq '67e7c6e28e540b4fd412ad663b634a38572b98d3f4608fc5792f2600d32c1eb9') { $reviewedVendorToken=$true; break }
+    }
+    if (-not $reviewedVendorToken) { throw 'Reviewed whole public vendor token absent.' }
+}
 if ($MaxFileBytes -lt 1 -or $MaxFileBytes -gt 64MB) { throw 'Invalid scan byte limit.' }
 
 function Invoke-Git([string[]]$Arguments, [switch]$AllowFailure) {
@@ -111,6 +127,16 @@ function Scan-Text([string]$Text,[string]$Scope,[string]$Item,[string]$Encoding=
     $statistics.genericWindowsOsPathReferences += ([regex]::Matches($normalized,'(?i)\b[A-Z]:[\\/](?:Windows|Program Files(?: \(x86\))?|ProgramData)(?:[\\/]|\b)')).Count
     foreach ($rule in $compiledRules) {
         foreach ($match in $rule.regex.Matches($normalized)) {
+            if ($reviewedVendorToken -and $Scope -ceq 'installer' -and $Encoding -ceq 'ascii-strings' -and $rule.name -ceq 'private-runtime-identity') {
+                $start=$normalized.LastIndexOf("`n",$match.Index)+1
+                $end=$normalized.IndexOf("`n",$match.Index)
+                if ($end -lt 0) {$end=$normalized.Length}
+                $whole=$normalized.Substring($start,$end-$start)
+                if ((Hash-Bytes ($utf8.GetBytes($whole))) -ceq '67e7c6e28e540b4fd412ad663b634a38572b98d3f4608fc5792f2600d32c1eb9') {
+                    ++$statistics.reviewedPublicVendorTokens
+                    continue
+                }
+            }
             $line = 1
             if ($Encoding -eq 'utf8' -or $Encoding -eq 'metadata') { $line += ([regex]::Matches($normalized.Substring(0,$match.Index),"`n")).Count }
             Add-Finding $Scope $Item $rule.name $line $Encoding
@@ -168,6 +194,9 @@ function Check-Extension([string]$Path,[string]$Scope,[string]$Item) {
     $allowed=$extension -in @('.md','.txt','.cmake','.json','.cpp','.hpp','.h','.ps1','.rc','.manifest','.yml','.yaml') -or
         $baseName -in @('LICENSE','Fujin-LICENSE','.gitattributes','.gitignore')
     if ($Scope -eq 'package' -and $Path -ceq 'DAC.exe') { $allowed=$true }
+    # The reviewed installer script is text and receives every existing scan.
+    # Other .iss files and executable repository files remain disallowed.
+    if ($Path -ceq 'installer/DAC.iss' -and $Scope -ne 'package') { $allowed=$true }
     if (-not $allowed) { Add-Finding $Scope $Item 'unexpected-file-extension' }
 }
 function Tree-Entries([string]$Commit) {
@@ -276,6 +305,14 @@ Assert-NoReparse $reportPath $repository
 $relativeReport=[IO.Path]::GetRelativePath($repository,$reportPath).Replace('\','/')
 $ignored=Invoke-Git @('check-ignore','--quiet','--',$relativeReport) -AllowFailure
 if ($ignored.Code -ne 0) { throw 'Audit report is not ignored.' }
+if ($Installer) {
+    $installerPath=(Resolve-Path -LiteralPath $Installer).Path
+    if (-not $installerPath.StartsWith($repository+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase) -or
+        [IO.Path]::GetFileName($installerPath) -cne 'DAC-Setup-0.1.0-dev-windows-x64.exe') { throw 'Unexpected installer audit identity.' }
+    Assert-NoReparse $installerPath $repository
+    if ((Get-Item -LiteralPath $installerPath).Length -gt $MaxFileBytes) { throw 'Installer exceeds audit size bound.' }
+    Scan-Bytes ([IO.File]::ReadAllBytes($installerPath)) 'installer' 'DAC-Setup-0.1.0-dev-windows-x64.exe' @('DAC-Setup-0.1.0-dev-windows-x64.exe') $true
+}
 $parent=Split-Path $reportPath -Parent; [void][IO.Directory]::CreateDirectory($parent)
 $uniqueFindings=@($findings | Sort-Object scope,item,rule,line,encoding -Unique)
 $summary=[ordered]@{
@@ -283,7 +320,7 @@ $summary=[ordered]@{
     uniqueReachableBlobs=$blobs.Count; newBlobsRelativeToBase=@($blobs.Keys | Where-Object { -not $baseBlobs.Contains($_) }).Count
     worktreeIncluded=[bool]$IncludeWorktree; worktreeFiles=$worktreeFiles; packageFiles=$packageFiles; packageEntryListSha256=$entryListHash
     excludedFromWorktreeInventory=@('Git administrative files','Git-ignored outputs, caches, dependencies and private reports')
-    scannedObjects=$inventory.Count; findings=$uniqueFindings.Count; productExecuted=$false
+    scannedObjects=$inventory.Count; findings=$uniqueFindings.Count; productExecuted=$false; installerIncluded=[bool]$Installer
     result=$(if ($uniqueFindings.Count) { 'review-required' } else { 'passed' })
     rules=@($uniqueFindings | Group-Object rule | Sort-Object Name | ForEach-Object { [pscustomobject]@{rule=$_.Name;count=$_.Count} })
 }
