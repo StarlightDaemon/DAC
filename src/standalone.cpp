@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 StarlightDaemon
 #include "dac.cpp"
+#include "installation-lease.hpp"
 
 namespace {
 void Print(const char* text,bool error=false) {
@@ -105,6 +106,15 @@ int Main(int count,wchar_t** args) {
 } // namespace
 
 int WINAPI wWinMain(_In_ HINSTANCE,_In_opt_ HINSTANCE,_In_ PWSTR,_In_ int) {
+    std::vector<wchar_t> executable(32768);DWORD length=GetModuleFileNameW(nullptr,executable.data(),32768);
+    if(!length||length>=32768)return 5;
+    std::wstring directory(executable.data(),length);auto separator=directory.find_last_of(L"\\");
+    if(separator==std::wstring::npos)return 5;directory.resize(separator);
+    // Retain until OS teardown, beyond Shutdown and singleton release. Each
+    // helper acquires its own lease before any argument or hardware operation.
+    static HANDLE processLifetimeLease=nullptr;
+    if(!dac::AcquireInstallationLease(directory,processLifetimeLease)||
+       (processLifetimeLease&&!dac::LocalPath(directory,true,true)))return 5;
     int count=0;wchar_t** args=CommandLineToArgvW(GetCommandLineW(),&count);if(!args)return 3;
     int result=Main(count,args);LocalFree(args);return result;
 }
