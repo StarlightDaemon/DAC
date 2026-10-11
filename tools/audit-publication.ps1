@@ -41,7 +41,7 @@ $utf8 = [Text.UTF8Encoding]::new($false, $true)
 $findings = [Collections.Generic.List[object]]::new()
 $inventory = [Collections.Generic.List[object]]::new()
 $commits = [Collections.Generic.List[object]]::new()
-$statistics = [ordered]@{ genericWindowsOsPathReferences=0; syntheticRedactionFixtures=0; executableAsciiStrings=0; executableUtf16Strings=0; reviewedPublicVendorTokens=0 }
+$statistics = [ordered]@{ genericWindowsOsPathReferences=0; syntheticRedactionFixtures=0; executableAsciiStrings=0; executableUtf16Strings=0; reviewedPublicVendorTokens=0; reviewedPublicVendorUtf16Occurrences=0 }
 $reviewedVendorToken=$false
 if ($Installer) {
     # One complete public ASCII token collides with a runtime identity on some
@@ -116,7 +116,7 @@ $publicRules = @(
 )
 foreach ($rule in $publicRules) { $rules.Add(@{name=$rule.name;pattern=$rule.pattern;options=[Text.RegularExpressions.RegexOptions]::None}) }
 $compiledRules = @($rules | ForEach-Object { [pscustomobject]@{ name=$_.name; regex=[regex]::new($_.pattern,$_.options,[TimeSpan]::FromSeconds(3)) } })
-function Scan-Text([string]$Text,[string]$Scope,[string]$Item,[string]$Encoding='utf8',[bool]$SyntheticFixture=$false) {
+function Scan-Text([string]$Text,[string]$Scope,[string]$Item,[string]$Encoding='utf8',[bool]$SyntheticFixture=$false,$WideContext=$null) {
     $normalized = Normalize-Text $Text
     # This exact test payload is the only real-user-profile-shaped exception.
     if ($SyntheticFixture) {
@@ -137,11 +137,88 @@ function Scan-Text([string]$Text,[string]$Scope,[string]$Item,[string]$Encoding=
                     continue
                 }
             }
+            if (Test-ReviewedRuntimeMatch $Scope $Item $Encoding $rule.name $match $WideContext) {
+                if ($WideContext.seen.Add(6863116)) {++$statistics.reviewedPublicVendorUtf16Occurrences}
+                continue
+            }
             $line = 1
             if ($Encoding -eq 'utf8' -or $Encoding -eq 'metadata') { $line += ([regex]::Matches($normalized.Substring(0,$match.Index),"`n")).Count }
             Add-Finding $Scope $Item $rule.name $line $Encoding
         }
     }
+}
+# DAC-INSTALLER-06 established this one unchanged vendor resource. A proof is
+# usable only with the same decoded bytes and real scanner byte coordinates.
+function Assert-ReviewedRuntimeVendor($Evidence) {
+    $pins=[ordered]@{
+        version='7.1.0';verification='passed';authenticode='Valid';portable=$true
+        publisher='CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL'
+        downloadSha256='0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f'
+        downloadBytes=14304168;inventoryFiles=132
+        compilerSha256='d06ebd38f38e3cee60a3c50cc45bd449d77e0bc6a5cabc607ea9886808e4de1a'
+        inventorySha256='8e61cdf72020ee9a89b8a28305b5300e269468ea334779adf2abf8dae90b618a'
+        runtimeSha256='ad12a06d09afefa9d1283c6616ef4d56289dc14a7137a12b24653a12637216bb'
+    }
+    foreach ($key in $pins.Keys) {if ($Evidence.$key -cne $pins[$key]) {throw 'Reviewed runtime vendor provenance changed.'}}
+    if ($Evidence.portable -isnot [bool] -or $Evidence.downloadBytes -isnot [long] -and $Evidence.downloadBytes -isnot [int] -or
+        $Evidence.inventoryFiles -isnot [long] -and $Evidence.inventoryFiles -isnot [int]) {throw 'Reviewed runtime provenance types changed.'}
+}
+function Get-ReviewedRuntimeVendorEvidence {
+    $evidence=& (Join-Path $repository 'tools/bootstrap-installer.ps1') -Offline -VerifyOnly | ConvertFrom-Json
+    $evidence | Add-Member -NotePropertyName inventorySha256 -NotePropertyValue ((Get-FileHash -LiteralPath (Join-Path $repository '.tools/inno-7.1.0.inventory.json')).Hash.ToLowerInvariant())
+    $evidence | Add-Member -NotePropertyName runtimeSha256 -NotePropertyValue ((Get-FileHash -LiteralPath (Join-Path $repository '.tools/inno-7.1.0/Setup.e64')).Hash.ToLowerInvariant())
+    Assert-ReviewedRuntimeVendor $evidence
+    return $evidence
+}
+function Get-ReviewedRuntimeProof([byte[]]$Runtime,[byte[]]$Vendor,$Evidence) {
+    Assert-ReviewedRuntimeVendor $Evidence
+    if ((Hash-Bytes $Vendor) -cne 'ad12a06d09afefa9d1283c6616ef4d56289dc14a7137a12b24653a12637216bb' -or
+        $Runtime.Length -ne 6915072) {throw 'Reviewed runtime byte identity changed.'}
+    Initialize-InstallerReader
+    foreach ($bytes in @($Runtime,$Vendor)) {
+        $resource=[DacInstallerReader]::Resource($bytes,6,4081,0)
+        $data=[DacInstallerReader]::Part($bytes,$resource[0],$resource[1])
+        if ($resource[0] -ne 6862212 -or $resource[1] -ne 1452 -or
+            (Hash-Bytes $data) -cne 'b02caa228cd8290d58c399c4f99fddf6f2f6fc81cf3297faf2ca346e1f5c085b') {throw 'Reviewed runtime resource changed.'}
+        # RT_STRING block 4081, index 9 is ID 65289: validate serialization,
+        # not a matching substring elsewhere in the resource.
+        [long]$at=$resource[0]
+        foreach ($index in 0..15) {
+            [DacInstallerReader]::Range($bytes,$at,2)
+            $characters=[BitConverter]::ToUInt16($bytes,[int]$at);$at+=2
+            if ($at+2*$characters -gt $resource[0]+$resource[1]) {throw 'Runtime string resource is truncated.'}
+            if ($index -eq 9 -and ($at -ne 6863102 -or $characters -ne 40)) {throw 'Reviewed runtime message position changed.'}
+            $at+=2*$characters
+        }
+        if ($at -ne $resource[0]+$resource[1]) {throw 'Reviewed runtime resource serialization changed.'}
+        foreach ($range in @(
+            @(6863102,80,'6b7c30b0c3bcff307358ab78de723758a23a0b37d1ff8fc9da5df3c0db7219c2'),
+            @(6863116,18,'99b413a99c7d7c01ef664d99265100601cd536f23d9a84cb4413c046c3238c01'),
+            @(6862606,576,'128fbaab07d46e90e5992627b9fcdbc3d771f1cf772284bb7b0c84c214e36a17')
+        )) {if ((Hash-Bytes ([DacInstallerReader]::Part($bytes,$range[0],$range[1]))) -cne $range[2]) {throw 'Reviewed runtime message/match/run bytes changed.'}}
+        if ([BitConverter]::ToUInt16($bytes,6863114) -ne 32 -or [BitConverter]::ToUInt16($bytes,6863134) -ne 32 -or
+            [BitConverter]::ToUInt16($bytes,6862604) -ne 25 -or [BitConverter]::ToUInt16($bytes,6863182) -ne 30) {throw 'Reviewed runtime boundaries changed.'}
+    }
+    if (-not [Linq.Enumerable]::SequenceEqual[byte]([DacInstallerReader]::Part($Runtime,6862212,1452),[DacInstallerReader]::Part($Vendor,6862212,1452))) {throw 'Reviewed runtime resource differs from vendor bytes.'}
+    [pscustomobject]@{decodedSha256=(Hash-Bytes $Runtime);resourceOffset=6862212;resourceBytes=1452;resourceSha256='b02caa228cd8290d58c399c4f99fddf6f2f6fc81cf3297faf2ca346e1f5c085b';runOffset=6862606;runBytes=576;matchOffset=6863116;matchBytes=18}
+}
+function Test-ReviewedRuntimeMatch([string]$Scope,[string]$Item,[string]$Encoding,[string]$Rule,$Match,$Context) {
+    if ($null -eq $Context -or $Scope -cne 'installer' -or $Item -cne 'decoded-setup-runtime' -or
+        $Encoding -cne 'utf16le-strings-offset-0' -or $Rule -cne 'private-runtime-identity') {return $false}
+    $proof=$Context.proof
+    if ($proof.resourceOffset -ne 6862212 -or $proof.resourceBytes -ne 1452 -or
+        $proof.resourceSha256 -cne 'b02caa228cd8290d58c399c4f99fddf6f2f6fc81cf3297faf2ca346e1f5c085b' -or
+        $proof.runOffset -ne 6862606 -or $proof.runBytes -ne 576 -or $proof.matchOffset -ne 6863116 -or $proof.matchBytes -ne 18) {return $false}
+    foreach ($run in $Context.runs) {
+        if ($Match.Index -lt $run.textStart -or $Match.Index+$Match.Length -gt $run.textStart+$run.normalizedLength) {continue}
+        # Normalization may shrink escaped paths; those runs never authorize an
+        # exception. Detection still uses the original normalized joined text.
+        if ($run.raw -cne (Normalize-Text $run.raw) -or $run.byteOffset -ne 6862606 -or $run.raw.Length -ne 288 -or
+            (Hash-Bytes ([Text.Encoding]::Unicode.GetBytes($run.raw))) -cne '128fbaab07d46e90e5992627b9fcdbc3d771f1cf772284bb7b0c84c214e36a17') {return $false}
+        return ($run.byteOffset+2*($Match.Index-$run.textStart) -eq 6863116 -and 2*$Match.Length -eq 18 -and
+            (Hash-Bytes ([Text.Encoding]::Unicode.GetBytes($Match.Value))) -ceq '99b413a99c7d7c01ef664d99265100601cd536f23d9a84cb4413c046c3238c01')
+    }
+    return $false
 }
 function Safe-Name([string]$Name) {
     $normalized=Normalize-Text $Name
@@ -163,11 +240,12 @@ function Assert-NoReparse([string]$Path,[string]$Boundary) {
         if ($at -eq $Boundary) { break }; $at=Split-Path $at -Parent
     }
 }
-function Scan-Bytes([byte[]]$Bytes,[string]$Scope,[string]$Item,[string[]]$Paths,[bool]$Executable=$false) {
+function Scan-Bytes([byte[]]$Bytes,[string]$Scope,[string]$Item,[string[]]$Paths,[bool]$Executable=$false,[bool]$InstallerMetadata=$false,$RuntimeProof=$null) {
     $hash=Hash-Bytes $Bytes
+    if ($null -ne $RuntimeProof -and $hash -cne $RuntimeProof.decodedSha256) {throw 'Reviewed proof does not describe scanned bytes.'}
     $entry=[ordered]@{ scope=$Scope; item=$Item; bytes=$Bytes.LongLength; sha256=$hash; files=@($Paths | ForEach-Object { Safe-Name $_ }) }
     if ($Executable) {
-        if ($Bytes.Length -lt 2 -or $Bytes[0] -ne 0x4d -or $Bytes[1] -ne 0x5a) { Add-Finding $Scope $Item 'declared-executable-not-pe' }
+        if ((-not $InstallerMetadata -or $Scope -cne 'installer-metadata') -and ($Bytes.Length -lt 2 -or $Bytes[0] -ne 0x4d -or $Bytes[1] -ne 0x5a)) { Add-Finding $Scope $Item 'declared-executable-not-pe' }
         $ascii=[regex]::Matches([Text.Encoding]::Latin1.GetString($Bytes),'[ -~]{4,}')
         $statistics.executableAsciiStrings += $ascii.Count
         Scan-Text (($ascii | ForEach-Object Value) -join "`n") $Scope $Item 'ascii-strings'
@@ -176,7 +254,22 @@ function Scan-Bytes([byte[]]$Bytes,[string]$Scope,[string]$Item,[string[]]$Paths
             if ($length -le 0) { continue }
             $wide=[regex]::Matches([Text.Encoding]::Unicode.GetString($Bytes,$offset,$length),'[\p{L}\p{M}\p{N}\p{P}\p{S} ]{4,}')
             $statistics.executableUtf16Strings += $wide.Count
-            Scan-Text (($wide | ForEach-Object Value) -join "`n") $Scope $Item ('utf16le-strings-offset-'+$offset)
+            $joined=($wide | ForEach-Object Value) -join "`n"
+            $context=$null
+            if ($null -ne $RuntimeProof -and $offset -eq 0) {
+                [int]$rawTextStart=0
+                $runs=@(foreach ($run in $wide) {
+                    if (2*$run.Index -eq 6862606) {
+                        # Only the physical candidate needs a map. Normalize the
+                        # complete preceding joined text once, preserving shifts
+                        # from escaped paths without allocating a map per string.
+                        [pscustomobject]@{textStart=(Normalize-Text $joined.Substring(0,$rawTextStart)).Length;normalizedLength=(Normalize-Text $run.Value).Length;byteOffset=(2*$run.Index);raw=$run.Value}
+                    }
+                    $rawTextStart+=$run.Length+1
+                })
+                $context=[pscustomobject]@{proof=$RuntimeProof;runs=$runs;seen=[Collections.Generic.HashSet[int]]::new()}
+            }
+            Scan-Text $joined $Scope $Item ('utf16le-strings-offset-'+$offset) $false $context
         }
         $entry.kind='executable-strings-scanned'
     } else {
@@ -312,6 +405,22 @@ if ($Installer) {
     Assert-NoReparse $installerPath $repository
     if ((Get-Item -LiteralPath $installerPath).Length -gt $MaxFileBytes) { throw 'Installer exceeds audit size bound.' }
     Scan-Bytes ([IO.File]::ReadAllBytes($installerPath)) 'installer' 'DAC-Setup-0.1.0-dev-windows-x64.exe' @('DAC-Setup-0.1.0-dev-windows-x64.exe') $true
+    . (Join-Path $PSScriptRoot 'Package.Common.ps1')
+    . (Join-Path $PSScriptRoot 'Installer.Common.ps1')
+    $embedded=Read-InstallerEmbeddedContent $installerPath
+    if (-not $embedded.complete -or $embedded.payloads.Count -ne 19) {throw 'Embedded installer audit incomplete.'}
+    $vendorEvidence=Get-ReviewedRuntimeVendorEvidence
+    $runtimeProof=Get-ReviewedRuntimeProof $embedded.runtime ([IO.File]::ReadAllBytes($vendor)) $vendorEvidence
+    Scan-Bytes $embedded.runtime 'installer' 'decoded-setup-runtime' @('decoded-setup-runtime') $true $false $runtimeProof
+    Scan-Bytes $embedded.metadata 'installer-metadata' 'decoded-setup-metadata' @('decoded-setup-metadata') $true $true
+    Scan-Bytes $embedded.locations 'installer-metadata' 'decoded-file-locations' @('decoded-file-locations') $true $true
+    $spec=Get-PackageSpecification
+    $expected=@($spec.files.path | ForEach-Object {'{app}\'+$_.Replace('/','\')} | Sort-Object)
+    if (($expected -join '|') -cne ((@($embedded.payloads.destination | Sort-Object)) -join '|')) {throw 'Embedded installer allowlist mismatch.'}
+    foreach ($payload in $embedded.payloads) {
+        $name=$payload.destination.Substring(6).Replace('\','/')
+        Scan-Bytes $payload.bytes 'installer-payload' $name @($name) ($name -ceq 'DAC.exe')
+    }
 }
 $parent=Split-Path $reportPath -Parent; [void][IO.Directory]::CreateDirectory($parent)
 $uniqueFindings=@($findings | Sort-Object scope,item,rule,line,encoding -Unique)
@@ -320,7 +429,7 @@ $summary=[ordered]@{
     uniqueReachableBlobs=$blobs.Count; newBlobsRelativeToBase=@($blobs.Keys | Where-Object { -not $baseBlobs.Contains($_) }).Count
     worktreeIncluded=[bool]$IncludeWorktree; worktreeFiles=$worktreeFiles; packageFiles=$packageFiles; packageEntryListSha256=$entryListHash
     excludedFromWorktreeInventory=@('Git administrative files','Git-ignored outputs, caches, dependencies and private reports')
-    scannedObjects=$inventory.Count; findings=$uniqueFindings.Count; productExecuted=$false; installerIncluded=[bool]$Installer
+    scannedObjects=$inventory.Count; findings=$uniqueFindings.Count; productExecuted=$false; installerIncluded=[bool]$Installer; installerEmbeddedContentChecked=[bool]$Installer; installerPayloadFiles=$(if ($Installer) {$embedded.payloads.Count} else {0})
     result=$(if ($uniqueFindings.Count) { 'review-required' } else { 'passed' })
     rules=@($uniqueFindings | Group-Object rule | Sort-Object Name | ForEach-Object { [pscustomobject]@{rule=$_.Name;count=$_.Count} })
 }

@@ -10,6 +10,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $repository=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 . (Join-Path $PSScriptRoot 'Package.Common.ps1')
+. (Join-Path $PSScriptRoot 'Installer.Common.ps1')
+$sourceIdentity=Get-InstallerSourceIdentity
 $compilerReceipt = & (Join-Path $PSScriptRoot 'bootstrap-installer.ps1') -Offline -VerifyOnly | ConvertFrom-Json
 $archivePath=Resolve-PackageLocalPath $repository $Archive
 $inputReceipt=& (Join-Path $PSScriptRoot 'verify-package.ps1') -Archive $archivePath | ConvertFrom-Json
@@ -55,20 +57,10 @@ if (-not $process.WaitForExit(120000)) { $process.Kill($true);throw 'Owned insta
 if ($process.ExitCode -ne 0) { throw 'Installer compilation failed; inspect private compiler logs.' }
 $name=if ($FixtureRoot) {'DAC-Setup-0.1.0-dev-windows-x64-fixture.exe'} else {'DAC-Setup-0.1.0-dev-windows-x64.exe'}
 $installer=Join-Path $output $name
-$commit=(& git -C $repository rev-parse HEAD).Trim()
-if ($LASTEXITCODE -ne 0 -or $commit -cnotmatch '^[0-9a-f]{40}$') {throw 'Source commit is unavailable.'}
-$status=@(& git --no-optional-locks -C $repository status --porcelain=v1)
-if ($LASTEXITCODE -ne 0) {throw 'Source working-tree state is unavailable.'}
-$sourceNames=@(& git -C $repository ls-files --cached --others --exclude-standard | Sort-Object -Unique)
-if ($LASTEXITCODE -ne 0) {throw 'Source inventory is unavailable.'}
-$sourceLines=@(foreach ($sourceName in $sourceNames) {
-    $sourceFile=Resolve-PackageLocalPath $repository (Join-Path $repository $sourceName)
-    $sourceName+' '+(Get-FileHash -LiteralPath $sourceFile).Hash.ToLowerInvariant()
-})
-$sourceHash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($utf8.GetBytes(($sourceLines -join "`n")+"`n"))).ToLowerInvariant()
+Assert-InstallerSourceUnchanged $sourceIdentity (Get-InstallerSourceIdentity)
 $receipt=[ordered]@{
-    formatVersion=1; sourceCommit=$commit; workingTreeModified=($status.Count -ne 0)
-    sourceTreeSha256=$sourceHash; sourceFiles=$sourceNames.Count; fixture=[bool]$FixtureRoot; fixtureId=$FixtureId
+    formatVersion=1; sourceCommit=$sourceIdentity.commit; workingTreeModified=$sourceIdentity.modified
+    sourceTreeSha256=$sourceIdentity.sha256; sourceFiles=$sourceIdentity.files; fixture=[bool]$FixtureRoot; fixtureId=$FixtureId
     installer=$name; installerSha256=(Get-FileHash -LiteralPath $installer).Hash.ToLowerInvariant()
     installerBytes=(Get-Item -LiteralPath $installer).Length
     archiveSha256=$inputReceipt.archiveSha256; executableSha256=$inputReceipt.executableSha256
