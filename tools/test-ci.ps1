@@ -14,6 +14,7 @@ $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $private = Join-Path $repository ('out/private/ci-regression/' + [Guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($private)
 $pwsh = (Get-Process -Id $PID).Path
+$deadline=[DateTime]::UtcNow.AddMinutes(5)
 $script:checks = 0
 function Expect-Rejection([scriptblock]$Action) {
     $rejected = $false
@@ -69,8 +70,9 @@ function Assert-WorkflowPolicy([bool]$Condition) {
     if (-not $Condition) { throw 'Development artifact workflow policy regression.' }
     $script:checks++
 }
-Assert-WorkflowPolicy ($steps.Count -eq 10)
-$phases = @('Bootstrap','Release','Debug','Analyze','Package','Audit')
+Assert-ReviewedWorkflow $workflow; $script:checks++
+Assert-WorkflowPolicy ($steps.Count -eq 11)
+$phases = @('Bootstrap','Release','Debug','Analyze','Package','Installer','Audit')
 for ($index = 0; $index -lt $phases.Count; $index++) {
     $block = $steps[$index + 2].Groups[2].Value
     Assert-WorkflowPolicy ($block.Contains('run: ./tools/ci-windows.ps1 -Phase ' + $phases[$index]) -and
@@ -80,17 +82,18 @@ Assert-WorkflowPolicy ($workflow -match '(?m)^permissions:\r?\n  contents: read\
     $workflow -match '(?m)^    runs-on: windows-2025\r?$' -and
     $workflow -notmatch '(?m)^\s+continue-on-error:' -and
     ([regex]::Matches($workflow, 'uses: actions/upload-artifact@').Count -eq 1))
-Assert-WorkflowPolicy ($steps[7].Groups[1].Value -ceq 'Audit publication privacy' -and
-    $steps[8].Groups[1].Value -ceq 'Verify development artifact receipt' -and
-    $steps[9].Groups[1].Value -ceq 'Upload development test package')
+Assert-WorkflowPolicy ($steps[7].Groups[1].Value -ceq 'Verify installer integrity and privacy' -and
+    $steps[8].Groups[1].Value -ceq 'Audit publication privacy' -and
+    $steps[9].Groups[1].Value -ceq 'Verify development artifact receipt' -and
+    $steps[10].Groups[1].Value -ceq 'Upload development test package')
 # Pin the GitHub expression's fail-closed semantics: any prior failure/cancellation,
 # every PR event (including one aimed at main), and every other ref are excluded.
 $gate = '        if: ${{ success() && github.event_name == ''push'' && github.ref == ''refs/heads/main'' }}'
-foreach ($step in $steps[8..9]) {
+foreach ($step in $steps[9..10]) {
     $conditions = @($step.Groups[2].Value -split '\r?\n' | Where-Object { $_ -match '^        if:' })
     Assert-WorkflowPolicy ($conditions.Count -eq 1 -and $conditions[0] -ceq $gate)
 }
-$upload = $steps[9].Groups[2].Value
+$upload = $steps[10].Groups[2].Value
 $pathBlock = [regex]::Match($upload, '(?m)^          path: \|\r?\n((?:            [^\r\n]+\r?\n)+)')
 $paths = @($pathBlock.Groups[1].Value.TrimEnd() -split '\r?\n' | ForEach-Object { $_.Trim() })
 Assert-WorkflowPolicy (($paths -join '|') -ceq
@@ -102,7 +105,7 @@ foreach ($setting in @(
     '          retention-days: 14', '          overwrite: false', '          archive: true')) {
     Assert-WorkflowPolicy (@($upload -split '\r?\n' | Where-Object { $_ -ceq $setting }).Count -eq 1)
 }
-$guard = [regex]::Match($steps[8].Groups[2].Value, '(?m)^        run: \|\r?\n((?:          [^\r\n]*\r?\n)+)')
+$guard = [regex]::Match($steps[9].Groups[2].Value, '(?m)^        run: \|\r?\n((?:          [^\r\n]*\r?\n)+)')
 Assert-WorkflowPolicy ($guard.Success)
 $guardFile = Join-Path $private 'receipt-guard.ps1'
 [IO.File]::WriteAllText($guardFile, ([regex]::Replace($guard.Groups[1].Value, '(?m)^          ', '')), [Text.UTF8Encoding]::new($false))
@@ -143,4 +146,51 @@ Assert-WorkflowPolicy ((Invoke-ReceiptFixture -Tamper) -ne 0)
 Assert-WorkflowPolicy ((Invoke-ReceiptFixture -Receipt ('0' * 64 + '  DAC-0.1.0-dev-windows-x64.zip' + "`n")) -ne 0)
 Assert-WorkflowPolicy ((Invoke-ReceiptFixture -Receipt 'malformed receipt') -ne 0)
 Assert-WorkflowPolicy ((Invoke-ReceiptFixture -WrongName) -ne 0)
+# Negative exact-contract fixtures cover the entire YAML, including additions,
+# lifecycle execution, distribution, privilege and conditional gate bypasses.
+foreach ($modified in @(
+    $workflow.Replace('contents: read','contents: write'),
+    $workflow.Replace('  pull_request:','  pull_request_target:'),
+    $workflow.Replace('runs-on: windows-2025','runs-on: windows-11'),
+    $workflow.Replace('timeout-minutes: 45','timeout-minutes: 60'),
+    $workflow.Replace('run: ./tools/ci-windows.ps1 -Phase Installer','run: ./tools/test-installer.ps1'),
+    $workflow.Replace('      - name: Verify installer integrity and privacy','        continue-on-error: true'+"`n"+'      - name: Verify installer integrity and privacy'),
+    $workflow.Replace('      - name: Verify installer integrity and privacy','      - name: Unreviewed'+"`n"+'        run: echo bypass'+"`n"+'      - name: Verify installer integrity and privacy'),
+    $workflow.Replace('DAC-0.1.0-dev-windows-x64.zip.sha256','DAC-Setup-0.1.0-dev-windows-x64.exe'),
+    $workflow.Replace('de0fac2e4500dabe0009e67214ff5f5447ce83dd','v6'),
+    $workflow.Replace('run: ./tools/ci-windows.ps1 -Phase Installer','if: false'+"`n"+'        run: ./tools/ci-windows.ps1 -Phase Installer')
+)) {Expect-Rejection {Assert-ReviewedWorkflow $modified}}
+$evidence=[pscustomobject]@{verification='passed';embeddedPayloadChecked=$true;embeddedPayloadFiles=19;payloadFiles=19;fixture=$false;unsigned=$true;productExecuted=$false;sourceCommit=('a'*40);sourceTreeSha256=('b'*64)}
+Assert-InstallerVerification $evidence; $script:checks++
+foreach ($field in @('verification','embeddedPayloadChecked','embeddedPayloadFiles','payloadFiles','fixture','unsigned','productExecuted','sourceCommit','sourceTreeSha256')) {
+    $invalid=$evidence | ConvertTo-Json | ConvertFrom-Json
+    switch ($field) {
+        {$_ -in @('embeddedPayloadChecked','unsigned')} {$invalid.$field=$false}
+        {$_ -in @('fixture','productExecuted')} {$invalid.$field=$true}
+        {$_ -in @('embeddedPayloadFiles','payloadFiles')} {$invalid.$field=18}
+        default {$invalid.$field='invalid'}
+    }
+    Expect-Rejection {Assert-InstallerVerification $invalid}
+}
+Expect-Rejection {Assert-InstallerVerification ([pscustomobject]@{verification='passed'})}
+$runtimeEvidence=[pscustomobject]@{verification='passed';checks=59;positiveChecks=4;negativeChecks=55;resourceBytes=1452;resourceSha256='b02caa228cd8290d58c399c4f99fddf6f2f6fc81cf3297faf2ca346e1f5c085b';oneOccurrenceOnly=$true;installationExecuted=$false;sourceAndToolchainMutated=$false}
+Assert-RuntimePrivacyRegression $runtimeEvidence; $script:checks++
+foreach ($field in @('verification','checks','positiveChecks','negativeChecks','resourceBytes','resourceSha256','oneOccurrenceOnly','installationExecuted','sourceAndToolchainMutated')) {
+    $invalid=$runtimeEvidence | ConvertTo-Json | ConvertFrom-Json
+    switch ($field) {
+        'oneOccurrenceOnly' {$invalid.$field=$false}
+        {$_ -in @('installationExecuted','sourceAndToolchainMutated')} {$invalid.$field=$true}
+        {$_ -in @('checks','positiveChecks','negativeChecks','resourceBytes')} {$invalid.$field--}
+        default {$invalid.$field='invalid'}
+    }
+    Expect-Rejection {Assert-RuntimePrivacyRegression $invalid}
+}
+$invalid=$runtimeEvidence | ConvertTo-Json | ConvertFrom-Json;$invalid.oneOccurrenceOnly='true'
+Expect-Rejection {Assert-RuntimePrivacyRegression $invalid}
+Expect-Rejection {Assert-RuntimePrivacyRegression ([pscustomobject]@{verification='passed'})}
+if ((Get-CiCommandBudget 1) -ne 1) {throw 'Command budget changed.'}; $script:checks++
+$deadline=[DateTime]::UtcNow.AddSeconds(3)
+if ((Get-CiCommandBudget 300) -gt 3) {throw 'Command budget exceeded remaining time.'}; $script:checks++
+$deadline=[DateTime]::UtcNow.AddSeconds(-1)
+Expect-Rejection {Get-CiCommandBudget 300}
 Write-Output ('CI driver regression checks passed: ' + $script:checks + '.')

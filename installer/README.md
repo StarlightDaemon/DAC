@@ -47,6 +47,7 @@ DAC native toolchain, Fujin, regression, static analysis and privacy gates remai
 ./tools/ci-windows.ps1 -Phase Debug
 ./tools/ci-windows.ps1 -Phase Analyze
 ./tools/ci-windows.ps1 -Phase Package
+./tools/ci-windows.ps1 -Phase Installer
 ./tools/ci-windows.ps1 -Phase Audit
 ./tools/bootstrap-installer.ps1
 ./tools/test-installer.ps1 -AuditOnly
@@ -86,6 +87,93 @@ One complete public ASCII token can coincide with a runtime username/hostname:
 the audit classifies that exact token hash only after confirming the unchanged
 pinned upstream Setup.e64 hash and whole token. It records recognized collisions;
 all path, credential and other identity checks remain intact.
+
+## Hosted compile and artifact verification
+
+The hosted Windows Server workflow retains the native Bootstrap, Release, Debug,
+Analyze and Package gates and their exact 27-test inventories. Its Installer phase
+then verifies the pinned Inno archive size, SHA-256, valid signer and 132-file
+inventory, executes exactly eight privacy-boundary checks, builds two unsigned
+shipping installers in fresh independent directories and compares their bytes.
+Both outputs independently verify the current source commit and complete source
+file inventory, modified-tree state, compiler inventory, canonical payload include,
+ZIP receipt, PE properties and all 19 payload identities. Local modified sources
+are recorded explicitly; hosted source identity is the checked-out event revision.
+A source snapshot before compilation must still match after compilation; changes
+to the commit, working tree status, file count or bytes reject the build. The 48
+integrity regressions include source-change rejection and actual ASCII/UTF-16 byte
+scans proving metadata/product findings and product PE checks remain enforced.
+Valid LZMA1/LZMA2 streams must consume their complete compressed input; trailing
+bytes fail even when a decoder reads ahead into its internal buffer.
+
+Offline verification uses a narrowly scoped reader of the Inno 7.1.0 layout, with
+the LZMA decoders in the already pinned is7zxr-x64.dll. The reader is compiled from
+tools/installer-decode.cpp using the pinned native compiler. It never executes
+Setup or DAC and creates only ignored evidence under out/private. It validates
+the actual PE offset-table resource and block CRCs, disallows encryption/disk spanning, restores the Inno
+executable instruction transform, validates all decoded hashes and destination
+names against ZIP bytes, and rejects gaps, overlap, trailing data and undeclared
+payload bytes. Input is limited to 32 MiB, expanded streams/payload to 64 MiB,
+individual payload files to 16 MiB and decoder dictionaries to 64 MiB. Compiler
+and decoder processes have 60-second and 30-second bounds respectively.
+
+The final privacy audit scans the shipping EXE, decoded runtime, all decoded
+metadata and all 19 embedded product files. Metadata and product files receive
+the existing path, credential and identity rules without the vendor-token
+exception. The existing narrowly pinned whole-token exception remains restricted
+to installer/runtime ASCII identity findings. Raw evidence stays ignored and is
+never uploaded. Installer binaries are not downloadable CI artifacts.
+
+The job remains limited to 45 minutes. A timestamp from its initial masking step
+gives all required commands a shared 39-minute deadline, reserving six minutes for
+checkout/post-actions and the existing optional artifact steps. Each child timeout
+is capped by remaining budget; budget exhaustion fails validation instead of
+skipping a gate. The Installer workflow step also has an eight-minute limit.
+Hosted runtime/trust qualification remains subject to a new GitHub Actions run.
+DAC-INSTALLER-06 independently established one benign UTF-16 identity collision
+in an unchanged vendor error-message resource. A separate single-occurrence
+exception requires verified Inno archive/compiler/inventory/runtime identities,
+the actual RT_STRING block 4081/language 0/string ID 65289, the exact 1,452-byte
+resource at [6862212, 6863664), its reviewed SHA-256 and byte equality to Setup.e64.
+It also checks the complete 40-character message, 18-byte match at [6863116,
+6863134), space boundaries, and the exact 576-byte scanner run and delimiters.
+Only installer/decoded-setup-runtime, private-runtime-identity and aligned UTF-16
+may use this proof. Text normalization retains its detection behavior; byte
+coordinates are preserved separately. Other occurrences and rules remain active.
+The existing ASCII exception is unchanged. Sanitized audit statistics count the
+one approved byte occurrence once, even if two identity rules match those bytes.
+
+The Installer phase also runs 59 focused checks: four positive checks and 55
+adversarial checks for provenance, resource/message/boundary changes, relocation,
+duplication, odd alignment, isolated copies, nearby paths/credentials, other
+identities and unapproved scopes. The original eight privacy-boundary checks and
+48 integrity checks remain required. Raw fixture values remain private; source,
+compiler and runtime files are never mutated by these tests. Local acceptance
+requires a completed full audit with zero findings; hosted qualification still
+requires a fresh run of the final implementation.
+
+Local focused verification, using an already verified portable package:
+
+```powershell
+./tools/test-ci.ps1
+./tools/ci-windows.ps1 -Phase Installer
+./tools/ci-windows.ps1 -Phase Audit
+```
+
+Output directories must be fresh; existing ones are refused. For repeated local
+checks, build-installer.ps1 accepts a new OutputDirectory and the integrity
+regression accepts explicit Installer and Archive paths. Both CI Installer and
+Audit phases accept InstallerDirectory for a fresh local build; use the same
+directory and Archive for both phases. Archive defaults to the fresh hosted
+package; explicit paths permit qualified local packages. Full test-installer.ps1
+without AuditOnly remains an installation lifecycle fixture and is not called on
+the hosted Windows Server runner. Workstation restrictions remain unchanged.
+
+Format/decoder references: [Inno packed records](https://github.com/jrsoftware/issrc/blob/is-7_1_0/Projects/Src/Shared.Struct.pas),
+[record serialization](https://github.com/jrsoftware/issrc/blob/is-7_1_0/Projects/Src/Shared.SetupEntFunc.pas),
+[CRC framing and instruction transform](https://github.com/jrsoftware/issrc/blob/is-7_1_0/Projects/Src/Compression.Base.pas),
+[payload extraction](https://github.com/jrsoftware/issrc/blob/is-7_1_0/Projects/Src/Setup.FileExtractor.pas),
+and [7-Zip decoder interfaces](https://github.com/ip7z/7zip/blob/25.01/CPP/7zip/ICoder.h).
 
 ## Fixtures and remaining qualification
 
