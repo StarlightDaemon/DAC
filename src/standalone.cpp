@@ -73,6 +73,9 @@ int Main(int count,wchar_t** args) {
         "       DAC.exe --help | --version | --stop\n"
         "A normal start opens Quick setup on first run; automation is initially off.\n"
         "Right-click the tray for protection, settings, appearance and optional login startup.\n"
+        "Display controls shows per-display state and temporary DAC-only keep-awake timers.\n"
+        "Friendly display names are edited in Advanced settings and shared across profiles.\n"
+        "Keep-awake timers do not prevent Windows sleep or guarantee monitor power.\n"
         "--config-directory selects a separate profile; shares, mapped drives and reparse paths are rejected.\n"
         "Emergency exit: Ctrl+Alt+Shift+F12. --stop affects this user/session only.\n");return 0;}
     if(count==2&&wcscmp(args[1],L"--version")==0){Print("DAC 0.1.0\n");return 0;}

@@ -57,7 +57,7 @@ std::wstring IntegrationValue(const wchar_t* name) {
 }
 void ReadIntegrationFixture() {
     integration.startupSetup=IntegrationValue(L"StartupPresentation")==L"setup";
-    auto click=IntegrationValue(L"TrayClickAction");integration.trayAction=click==L"setup"?1:click==L"settings"?2:0;
+    auto click=IntegrationValue(L"TrayClickAction");integration.trayAction=click==L"setup"?1:click==L"settings"?2:click==L"flyout"?3:0;
     auto appearance=IntegrationValue(L"Appearance");integration.appearance=appearance==L"light"?1:appearance==L"dark"?2:0;
 }
 #endif
@@ -80,6 +80,7 @@ std::string Utf8(const std::wstring& s) {
     int n=WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,s.data(),static_cast<int>(s.size()),nullptr,0,nullptr,nullptr);
     std::string b(n,'\0'); if(n) WideCharToMultiByte(CP_UTF8,WC_ERR_INVALID_CHARS,s.data(),static_cast<int>(s.size()),b.data(),n,nullptr,nullptr); return b;
 }
+#include "background-process.hpp"
 std::wstring Extended(const std::wstring& path) {
     if(path.empty()||path.size()>32000||path.find(L'\0')!=std::wstring::npos) return {};
     if(path.starts_with(L"\\\\?\\")) return path;
@@ -165,10 +166,18 @@ std::wstring SaverPath(int index) {
     return n && n<32768?std::wstring(path.data())+L"\\"+savers[index]:L"";
 }
 bool Available(int index) { auto p=SaverPath(index); DWORD a=GetFileAttributesW(p.c_str()); return !p.empty()&&a!=INVALID_FILE_ATTRIBUTES&&!(a&FILE_ATTRIBUTE_DIRECTORY); }
-struct Display { std::string id,alias; std::wstring label; HMONITOR handle{}; RECT rect{}; bool identified=false; };
+struct Display { std::string id,alias; std::wstring label; HMONITOR handle{}; RECT rect{}; bool identified=false;int technology=-1,rotation=0;bool targetAvailable=false; };
 std::vector<Display> displays;
 Display spanningDisplay;
 Controller controller;
+Time topologyEpoch=0;
+Time configurationEpoch=1;
+std::wstring DisplayLabel(const Display& d,const Config& config,const std::vector<Display>& catalog) {
+    auto index=std::find_if(catalog.begin(),catalog.end(),[&](const Display& item){return item.id==d.id;});
+    auto name=config.nicknames.find(d.id);auto label=name!=config.nicknames.end()&&!name->second.empty()?Wide(name->second):d.label;
+    return L"Display "+std::to_wstring(index==catalog.end()?0:index-catalog.begin()+1)+L" — "+label+(d.identified?L"":L" (identity unavailable)");
+}
+std::wstring MenuLabel(std::wstring text) {std::wstring safe;for(auto ch:text){if(ch==L'&')safe+=L'&';safe+=ch==L'\t'?L' ':ch;}return safe;}
 std::wstring configPath;
 std::atomic<HWND> ui{};
 void ReadIntegrationSettings() {
@@ -183,7 +192,7 @@ bool WriteIntegrationSettings(const IntegrationSettings& next,DWORD& error) {
     IntegrationSettings checked;if(!ParseIntegration(SerializeIntegration(next),checked)){error=ERROR_INVALID_DATA;return false;}
 #ifdef DAC_HARNESS
     integrationFixture={{L"StartupPresentation",next.startupSetup?L"setup":L"tray"},
-        {L"TrayClickAction",next.trayAction==1?L"setup":next.trayAction==2?L"settings":L"toggle"},
+        {L"TrayClickAction",next.trayAction==1?L"setup":next.trayAction==2?L"settings":next.trayAction==3?L"flyout":L"toggle"},
         {L"Appearance",next.appearance==1?L"light":next.appearance==2?L"dark":L"system"}};
     integration=next;return true;
 #else
@@ -347,6 +356,12 @@ bool ThemeMessage(HWND w,UINT msg,WPARAM wp,LPARAM lp,LRESULT& result) {
 }
 
 HWND editor{},workspace{},setupWindow{};
+void RefreshFlyoutTheme();
+void RefreshDisplayMapTheme();
+void RefreshInspectorTheme();
+void RefreshBackgroundEditorTheme();
+void ShowInspector(const std::string& id={});
+void ShowDisplayMap();
 HFONT editorFont{},workspaceFont{},setupFont{};
 HWND options{};HFONT optionsFont{};ULONG_PTR imagingToken{};
 std::wstring hotkeyStatus;
@@ -370,9 +385,26 @@ void ConsumeAdapters(const AdapterSnapshot& sample,Time now){
     if(fresh&&controller.PolicyNow().controllerInput&&sample.inputAt>consumedControllerInput){controller.Input(now,controller.foreground.monitors,controller.foreground.valid&&!controller.foreground.monitors.empty(),sample.inputAt);consumedControllerInput=sample.inputAt;}
 }
 Media observation; Config mediaConfig; std::vector<Display> mediaDisplays; uint64_t observationEpoch=0;
+#ifdef DAC_HARNESS
+// Acknowledged only after actual observation work completes. Protected by
+// observationLock; resource fixtures must not infer quiescence from configuration.
+uint64_t mediaCompletedEpoch=0;bool mediaCompletedNeeded=true;
+#endif
 std::mutex registryLock; // Only handle publication/removal; NEVER held across launch/media queries.
 std::map<HANDLE,HWND> ownedJobs;
 std::set<HWND> ownedWindows;
+// The callback observes live job ownership while the process identity handle is
+// retained. Saver jobs enter this registry before their suspended child resumes.
+std::unique_ptr<BackgroundProcessWorker> backgroundWorker;
+Time backgroundRequested=0,nextBackgroundScan=0;
+void MaintainBackground(Time now) {
+    if(!backgroundWorker)return;
+    auto epoch=controller.backgroundEpoch;
+    if(epoch!=backgroundRequested||now>=nextBackgroundScan){
+        backgroundWorker->Request({epoch,controller.PolicyNow().rules});backgroundRequested=epoch;nextBackgroundScan=now+1000;
+    }
+    BackgroundObservation sample;if(backgroundWorker->Take(sample))controller.background.Apply(sample,now);
+}
 std::atomic<unsigned> diagnostics{};
 struct DiagnosticEvent {Time at;std::string alias,event;DWORD code;};
 std::mutex diagnosticLock;std::deque<DiagnosticEvent> diagnosticEvents;
@@ -419,12 +451,13 @@ void RequestFaultReset(const std::string& id);
 void QueueNotice(const wchar_t* text);
 void Maintain(Time now);
 std::map<std::string,Reason> lastReasons;
-const char* ReasonText(Reason r){switch(r){case Reason::Disabled:return "Disabled";case Reason::Session:return "Session or tray blocked";case Reason::Paused:return "Paused for this session";case Reason::Snoozed:return "Automatic activation snoozed";case Reason::ManualOnly:return "Manual only";case Reason::App:return "Foreground application rule";case Reason::Fullscreen:return "Fullscreen foreground application";case Reason::Stale:return "Observation unavailable or stale";case Reason::Media:return "Media activity (process/window heuristic)";case Reason::Idle:return "Waiting for idle";case Reason::Dim:return "Software dim warning";case Reason::Manual:return "Manual presentation";case Reason::Sticky:return "Sticky presentation";case Reason::Presentation:return "Presentation active";case Reason::Fallback:return "Presentation failed; black fallback";case Reason::HardwareFault:return "Hardware fault quarantined";}return "Unknown";}
+const char* ReasonText(Reason r){switch(r){case Reason::Disabled:return "Disabled";case Reason::Session:return "Session or tray blocked";case Reason::Paused:return "Paused for this session";case Reason::Snoozed:return "Automatic activation snoozed";case Reason::ManualOnly:return "Manual only";case Reason::App:return "Foreground application rule";case Reason::Fullscreen:return "Fullscreen foreground application";case Reason::Stale:return "Observation unavailable or stale";case Reason::Media:return "Media activity (process/window heuristic)";case Reason::Idle:return "Waiting for idle";case Reason::Dim:return "Software dim warning";case Reason::Manual:return "Manual presentation";case Reason::Sticky:return "Sticky presentation";case Reason::Presentation:return "Presentation active";case Reason::Fallback:return "Presentation failed; black fallback";case Reason::HardwareFault:return "Hardware fault quarantined";case Reason::KeepAwake:return "Temporary keep-awake (DAC automatic protection only)";case Reason::Background:return "Background running-application rule";}return "Unknown";}
 std::wstring ExplanationText(const std::string& id) {
     Media m;{std::lock_guard lock(observationLock);m=observation;}auto e=controller.Explain(id,m,GetTickCount64());auto text=Wide(ReasonText(e.primary));
-    if(e.kind!=DeadlineKind::None){auto label=e.kind==DeadlineKind::Activation?L" — activation in ":e.kind==DeadlineKind::Presentation?L" — presentation in ":e.kind==DeadlineKind::Black?L" — black in ":L" — hardware request in ";text+=label+std::to_wstring((e.remaining+999)/1000)+L" s";}
+    if(e.kind!=DeadlineKind::None){auto label=e.kind==DeadlineKind::Activation?L" — activation in ":e.kind==DeadlineKind::Presentation?L" — presentation in ":e.kind==DeadlineKind::Black?L" — black in ":e.kind==DeadlineKind::KeepAwake?L" — resumes in ":L" — hardware request in ";text+=label+std::to_wstring((e.remaining+999)/1000)+L" s";}
     else if(e.primary==Reason::Snoozed)text+=L" — resumes in "+std::to_wstring((e.remaining+999)/1000)+L" s";
     if(e.flags&(1u<<static_cast<unsigned>(Reason::HardwareFault)))text+=L"; hardware fault retained";
+    auto& rules=controller.PolicyNow().rules;for(size_t i=0;i<rules.size();++i)if(rules[i].enabled&&rules[i].kind==2&&(rules[i].global||rules[i].targets.contains(id))&&controller.background.Uncertain(i,GetTickCount64())){text+=L"; background observation uncertain (grace limited to 5 seconds)";break;}
     return text;
 }
 #ifdef DAC_HARNESS
@@ -443,39 +476,54 @@ void Note(const wchar_t* event,DWORD code=0) {
 #endif
 }
 void Notice(const wchar_t* text) {QueueNotice(text);}
+#ifdef DAC_HARNESS
+std::atomic<bool> catalogMonitorInfoFail{},catalogDeviceInfoFail{};
+#endif
 BOOL CALLBACK EnumMonitor(HMONITOR m,HDC,LPRECT r,LPARAM data) {
     auto list=reinterpret_cast<std::vector<Display>*>(data); MONITORINFOEXW info{}; info.cbSize=sizeof(info);
-    if(list->size()>=32||!GetMonitorInfoW(m,&info)) return TRUE;
+#ifdef DAC_HARNESS
+    if(catalogMonitorInfoFail)return FALSE;
+#endif
+    if(list->size()>=32||!GetMonitorInfoW(m,&info)) return FALSE;
     Display d; d.handle=m; d.rect=*r; d.alias=Utf8(info.szDevice); d.label=info.szDevice;
     list->push_back(d); return TRUE;
 }
-std::vector<Display> Catalog() {
-    std::vector<Display> list; EnumDisplayMonitors(nullptr,nullptr,EnumMonitor,reinterpret_cast<LPARAM>(&list));
+std::vector<Display> Catalog(bool* complete=nullptr) {
+    std::vector<Display> list;bool enumerated=!!EnumDisplayMonitors(nullptr,nullptr,EnumMonitor,reinterpret_cast<LPARAM>(&list)),configured=false;
     // One logical source with multiple physical targets is a clone group. It is
     // deliberately disabled: independent physical presentation is impossible.
     std::map<std::string,std::vector<std::pair<std::string,std::wstring>>> identities;
+    std::map<std::string,std::pair<int,int>> connections;std::set<std::string> available;
     for(int retry=0;retry<3;++retry) {
         UINT32 pc=0,mc=0; if(GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS,&pc,&mc)!=ERROR_SUCCESS||pc>256||mc>1024) break;
         std::vector<DISPLAYCONFIG_PATH_INFO> paths(pc); std::vector<DISPLAYCONFIG_MODE_INFO> modes(mc);
         LONG status=QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS,&pc,paths.data(),&mc,modes.data(),nullptr);
-        if(status==ERROR_INSUFFICIENT_BUFFER) continue; if(status!=ERROR_SUCCESS) break;
+        if(status==ERROR_INSUFFICIENT_BUFFER) continue; if(status!=ERROR_SUCCESS) break;configured=true;
         for(UINT32 i=0;i<pc;++i) {
             auto& p=paths[i]; DISPLAYCONFIG_SOURCE_DEVICE_NAME source{};
             source.header={DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,sizeof(source),p.sourceInfo.adapterId,p.sourceInfo.id};
             DISPLAYCONFIG_TARGET_DEVICE_NAME target{};
             target.header={DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,sizeof(target),p.targetInfo.adapterId,p.targetInfo.id};
-            if(DisplayConfigGetDeviceInfo(&source.header)==ERROR_SUCCESS&&DisplayConfigGetDeviceInfo(&target.header)==ERROR_SUCCESS&&target.monitorDevicePath[0])
-                identities[Utf8(source.viewGdiDeviceName)].push_back({Canonical(Utf8(target.monitorDevicePath)),target.monitorFriendlyDeviceName});
+            bool read=DisplayConfigGetDeviceInfo(&source.header)==ERROR_SUCCESS&&DisplayConfigGetDeviceInfo(&target.header)==ERROR_SUCCESS;
+#ifdef DAC_HARNESS
+            if(catalogDeviceInfoFail)read=false;
+#endif
+            if(!read){configured=false;continue;}auto alias=Utf8(source.viewGdiDeviceName);identities.try_emplace(alias);
+            if(target.monitorDevicePath[0]){
+                auto id=Canonical(Utf8(target.monitorDevicePath));identities[alias].push_back({id,target.monitorFriendlyDeviceName});
+                connections[id]={static_cast<int>(p.targetInfo.outputTechnology),static_cast<int>(p.targetInfo.rotation)};if(p.targetInfo.targetAvailable)available.insert(id);}
         } break;
     }
     std::map<std::string,int> count;
     for(auto& [alias,ids]:identities) { (void)alias; for(auto& [id,label]:ids) { (void)label; ++count[id]; } }
     for(auto& d:list) {
+        if(!identities.contains(d.alias))configured=false;
         auto& ids=identities[d.alias];
-        if(ids.size()==1&&count[ids[0].first]==1) { d.id=ids[0].first; d.label+=L" — "+ids[0].second; d.identified=true; }
+        if(ids.size()==1&&count[ids[0].first]==1) { d.id=ids[0].first; d.label+=L" — "+ids[0].second; d.identified=true;d.technology=connections[d.id].first;d.rotation=connections[d.id].second;d.targetAvailable=available.contains(d.id); }
         else { d.id="unidentified:"+d.alias; d.label+=L" (unidentified or cloned; disabled)"; }
-    } return list;
+    } if(complete)*complete=enumerated&&configured;return list;
 }
+#include "display-snapshot.hpp"
 
 // Hardware control is isolated from UI/media/emergency threads. No DDC reads
 // occur during catalog/startup. Only an opted-in exact unique target is touched.
@@ -851,7 +899,11 @@ DWORD WINAPI MediaMain(void*) {
         if(epoch!=graceEpoch){grace={};graceEpoch=epoch;nextMedia=0;}
         if(now>=nextMedia){bool needed=c.media;for(auto& [id,p]:c.monitors){(void)id;if(p.enabled&&p.media==1)needed=true;}
             Media m;if(SUCCEEDED(com)&&needed)m=ObserveMedia(c,list);else if(!needed){m.valid=true;m.at=now;}m=grace.Apply(m,c.poll);
-            {std::lock_guard lock(observationLock);if(epoch==observationEpoch)observation=std::move(m);}nextMedia=now+c.poll;}
+            {std::lock_guard lock(observationLock);if(epoch==observationEpoch){observation=std::move(m);
+#ifdef DAC_HARNESS
+                mediaCompletedEpoch=epoch;mediaCompletedNeeded=needed;
+#endif
+            }}nextMedia=now+c.poll;}
         if(WaitForSingleObject(stopEvent,250)!=WAIT_TIMEOUT)break;
     }if(SUCCEEDED(com))CoUninitialize();return 0;
 }
@@ -1011,11 +1063,31 @@ void Reconcile() {
 }
 void Reset(ResetCause cause=ResetCause::Other) {Count(wakeTiming.resets[static_cast<size_t>(cause)]); controller.Reset(GetTickCount64()); StopRuns(); nextPoll=0; }
 void RefreshTopology() {
-    Reset(ResetCause::Topology); displays=Catalog(); std::vector<std::string> ids;
+    // Startup only. Subsequent discovery runs on the bounded rescan worker.
+    bool complete=false;auto next=Catalog(&complete);if(!complete){displaySnapshot.report=L"OS display enumeration unavailable";return;}
+    ++topologyEpoch;Reset(ResetCause::Topology); displays=std::move(next); std::vector<std::string> ids;
     for(auto& d:displays) ids.push_back(d.id);
-    controller.Topology(ids,GetTickCount64());controller.unidentified.clear();for(auto& d:displays)if(!d.identified)controller.unidentified.insert(d.id);InvalidateMedia();InvalidateFaults();topologyPending=false;
+    controller.unidentified.clear();for(auto& d:displays)if(!d.identified)controller.unidentified.insert(d.id);controller.Topology(ids,GetTickCount64());InvalidateMedia();InvalidateFaults();topologyPending=false;
+    displaySnapshot={topologyEpoch,GetTickCount64(),false,std::make_shared<const std::vector<Display>>(displays),L"OS display snapshot ready"};
 }
-void SetBlocked(ResetCause cause=ResetCause::Other) {controller.blocked=locked||suspended||displayOff||!trayPresent;controller.candidateSince=GetTickCount64();controller.candidateProfile.clear();Reset(cause);InvalidateMedia();}
+bool AcceptDisplayScan(const DisplayScanResult& result) {
+    if(unloading||result.topology!=topologyEpoch||result.configuration!=configurationEpoch){displaySnapshot.stale=true;displaySnapshot.report=L"Rescan discarded: topology or settings changed; scan again";return false;}
+    if(!result.success){displaySnapshot.stale=true;displaySnapshot.report=L"OS rescan failed; previous snapshot is stale. Try again.";return false;}
+    bool changed=!SameDisplayTopology(displays,result.catalog);
+    if(changed){++topologyEpoch;Reset(ResetCause::Topology);displays=result.catalog;std::vector<std::string> ids;
+        controller.unidentified.clear();for(auto& d:displays){ids.push_back(d.id);if(!d.identified)controller.unidentified.insert(d.id);}
+        controller.Topology(ids,GetTickCount64());controller.InvalidateBackground();InvalidateMedia();InvalidateFaults();
+    }else displays=result.catalog; // Metadata may change without invalidating owners.
+    topologyPending=false;
+    displaySnapshot={topologyEpoch,result.at,false,std::make_shared<const std::vector<Display>>(displays),changed?L"OS rescan complete: topology changed; recovery boundary applied":L"OS rescan complete: topology unchanged"};return true;
+}
+void MaintainDisplayScan(Time now) {
+    std::shared_ptr<const DisplayScanResult> result;
+    {std::lock_guard lock(displayScanLock);if(displayScanReady){result=std::move(displayScanResult);displayScanReady=false;displayScanBusy=false;}}
+    if(result)AcceptDisplayScan(*result);
+    if(topologyPending&&now>=nextCatalogAttempt){RequestDisplayScan();nextCatalogAttempt=now+1000;}
+}
+void SetBlocked(ResetCause cause=ResetCause::Other) {controller.blocked=locked||suspended||displayOff||!trayPresent;controller.candidateSince=GetTickCount64();controller.candidateProfile.clear();controller.InvalidateBackground();Reset(cause);InvalidateMedia();}
 std::set<std::string> ForegroundDisplays(HWND window) {
     std::set<std::string> ids;RECT bounds{};if(!window||!IsWindowVisible(window)||IsIconic(window)||!GetWindowRect(window,&bounds))return ids;
     for(auto& d:displays)if(MediaOverlap({bounds.left,bounds.top,bounds.right,bounds.bottom},{d.rect.left,d.rect.top,d.rect.right,d.rect.bottom}))ids.insert(d.id);return ids;
@@ -1082,6 +1154,8 @@ void ObserveForeground() {
 // one result and 32 reset reservations exist. No external call holds this lock.
 struct MaintenanceRequest {
     Time faultEpoch=0,trayEpoch=0;std::vector<std::pair<std::string,std::wstring>> paths,resets;
+    // Borrowed from the UI host: these immutable icons live until AFTER the
+    // maintenance worker joins. Requests must never copy or destroy them.
     bool tray=false,remove=false,present=false;int trayState=0;HWND window{};HICON icon{};std::wstring notice;
 };
 struct MaintenanceResult {
@@ -1090,13 +1164,13 @@ struct MaintenanceResult {
 };
 std::mutex maintenanceLock;std::condition_variable maintenanceChanged;std::thread maintenanceWorker;
 MaintenanceRequest maintenancePending;MaintenanceResult maintenanceResult;bool maintenanceResultReady=false,maintenanceStop=false;
-Time faultEpoch=1,trayEpoch=1,nextFault=0;bool faultsDirty=true,trayOutstanding=false;int requestedTray=-1;
+Time faultEpoch=1,trayEpoch=1,nextFault=0,faultObservedAt=0;bool faultsDirty=true,trayOutstanding=false;int requestedTray=-1;
 std::map<std::string,int> faultCache;std::set<std::string> resettingFaults;
 #ifdef DAC_HARNESS
 std::atomic<DWORD> maintenanceFileDelay{},maintenanceTrayDelay{};
 std::atomic<bool> maintenanceFileFail{},maintenanceInFile{},maintenanceInTray{};
 #endif
-void InvalidateFaults(){++faultEpoch;faultsDirty=true;faultCache.clear();}
+void InvalidateFaults(){++faultEpoch;faultsDirty=true;faultCache.clear();faultObservedAt=0;}
 bool CachedFault(const std::string& id){auto i=faultCache.find(id);return i==faultCache.end()||i->second;}
 const char* FaultCacheState(const std::string& id){auto i=faultCache.find(id);return i==faultCache.end()?"refresh pending":i->second==2?"query failed":i->second==1?"marker retained":"clear";}
 bool FaultResetPending(const std::string& id){return resettingFaults.contains(id);}
@@ -1158,7 +1232,6 @@ void MaintenanceMain(){
             maintenanceInTray=false;
 #endif
         }
-        if(request.icon)DestroyIcon(request.icon);
         {std::lock_guard lock(maintenanceLock);if(!maintenanceStop){maintenanceResult=std::move(result);maintenanceResultReady=true;}}
     }
 #ifndef DAC_HARNESS
@@ -1170,9 +1243,9 @@ void MaintenanceMain(){
 bool Tray(bool remove=false){
     MaintenanceRequest request;request.tray=true;request.remove=remove;request.present=trayPresent;request.window=ui;
     request.trayState=controller.paused?3:controller.Any()?2:controller.config.automatic?1:0;
-    request.icon=remove?nullptr:CopyIcon(controller.Any()?theme.activeIcon:theme.smallIcon);request.trayEpoch=++trayEpoch;
+    request.icon=remove?nullptr:controller.Any()?theme.activeIcon:theme.smallIcon;request.trayEpoch=++trayEpoch;
     trayOutstanding=true;requestedTray=request.trayState;nextTray=GetTickCount64()+(trayPresent?30000:1000);
-    std::lock_guard lock(maintenanceLock);if(maintenancePending.icon)DestroyIcon(maintenancePending.icon);
+    std::lock_guard lock(maintenanceLock);
     maintenancePending.tray=true;maintenancePending.remove=remove;maintenancePending.present=request.present;maintenancePending.window=request.window;
     maintenancePending.trayState=request.trayState;maintenancePending.icon=request.icon;maintenancePending.trayEpoch=request.trayEpoch;maintenanceChanged.notify_one();return true;
 }
@@ -1184,7 +1257,7 @@ void Maintain(Time now){
         // operation completes. StartPower cannot create a ticket during deletion.
         for(auto& id:result.resetDone){resettingFaults.erase(id);if(result.resetFailed.contains(id))Notice(L"Could not clear hardware fault file; check profile storage permissions.");else powerStatus.erase(id);}
         if(!result.resetDone.empty())InvalidateFaults();
-        if(result.faultEpoch){if(result.faultEpoch==faultEpoch)faultCache=std::move(result.faults);else Count(wakeTiming.staleResults);}
+        if(result.faultEpoch){if(result.faultEpoch==faultEpoch){faultCache=std::move(result.faults);faultObservedAt=now;}else Count(wakeTiming.staleResults);}
         if(result.tray){if(result.trayEpoch==trayEpoch){trayOutstanding=false;nextTray=now+(result.present?30000:1000);bool previous=trayPresent;trayPresent=result.present;if(previous!=trayPresent)SetBlocked(ResetCause::Tray);}else Count(wakeTiming.staleResults);}
     }
     if(faultsDirty||now>=nextFault){
@@ -1203,7 +1276,7 @@ void StartMaintenance(){
 void StopMaintenance(){
     {std::lock_guard lock(maintenanceLock);maintenanceStop=true;maintenanceChanged.notify_one();}
     if(maintenanceWorker.joinable())maintenanceWorker.join();
-    {std::lock_guard lock(maintenanceLock);if(maintenancePending.icon)DestroyIcon(maintenancePending.icon);maintenancePending={};maintenanceResult={};maintenanceResultReady=false;}
+    {std::lock_guard lock(maintenanceLock);maintenancePending={};maintenanceResult={};maintenanceResultReady=false;}
     resettingFaults.clear();trayPresent=false;
 }
 bool LegacyStartupPresent();
@@ -1237,18 +1310,22 @@ bool Save(Config next,bool reset=true,bool resetPreferences=false) {
     if(exists){if(resetPreferences&&!PreserveExact(L".reset-backup-"+std::to_wstring(GetTickCount64()),false))return SaveFailed(L"Could not back up existing preferences. Reset was cancelled; original settings are retained.");
         std::string previous,parseError;Config disk;bool readable=ReadFileText(configPath,previous,error)&&Parse(previous,disk,parseError);
         if(!readable&&!resetPreferences)return SaveFailed(error?L"Cannot read existing settings. Check file access; original settings are retained.":L"Existing settings are invalid or unsupported. Preserve the file before repairing it or using Reset in Advanced settings.",error);
-        if(readable&&disk.sourceSchema<3&&!PreserveExact(disk.sourceSchema==1?L".v1-backup":L".v2-backup",true))return SaveFailed(L"Migration backup could not be verified. Preserve any old .v1-backup or .v2-backup separately before retrying.");
+        if(readable&&disk.sourceSchema<5&&!PreserveExact(L".v"+std::to_wstring(disk.sourceSchema)+L"-backup",true))return SaveFailed(L"Migration backup could not be verified. Preserve any old migration backup separately before retrying.");
     }
     Config checked;std::string validation;if(!Parse(Serialize(next),checked,validation))return SaveFailed(L"Settings draft is invalid: "+Wide(validation)+L". Review Advanced settings before saving.");
+    auto oldPolicy=controller.config,newPolicy=next;oldPolicy.nicknames.clear();newPolicy.nicknames.clear();
+    bool labelsOnly=Serialize(oldPolicy)==Serialize(newPolicy);
+    bool rulesOnly=RulesOnlyChange(controller.config,next);
     if(!Commit(controller.config,std::move(next),[&](const std::string& data){return WriteFileText(configPath,data,error);})) {
         Note(L"settings persistence failed",error);return SaveFailed(L"Could not write settings. Check folder permissions or file locks. Your changes remain open; previous settings are retained.",error);
     }
-    if(reset){controller.effectiveReady=false;Reset();}debug=controller.config.debug;diagnostics=0;InvalidateMedia();RegisterControls();return true;
+    ++configurationEpoch;
+    if(reset&&(!labelsOnly||resetPreferences)&&(!rulesOnly||resetPreferences)){controller.effectiveReady=false;controller.InvalidateBackground();Reset();}controller.PruneLeases(GetTickCount64());debug=controller.config.debug;diagnostics=0;if(!rulesOnly||resetPreferences)InvalidateMedia();RegisterControls();return true;
 }
 void Reload() {
     controller.legacyAutomationBlocked=LegacyStartupPresent();
     std::string data,error; DWORD code=0; Config next;
-    if(ReadFileText(configPath,data,code)&&Parse(data,next,error)) { if(LegacyStartupPresent()) next.automatic=false; controller.config=std::move(next);controller.effectiveReady=false; debug=controller.config.debug; Reset(); InvalidateMedia();RegisterControls(); }
+    if(ReadFileText(configPath,data,code)&&Parse(data,next,error)) { if(LegacyStartupPresent()) next.automatic=false; controller.config=std::move(next);++configurationEpoch;controller.InvalidateBackground();controller.effectiveReady=false; debug=controller.config.debug; Reset(); InvalidateMedia();RegisterControls(); }
     else Notice(L"Cannot reload settings. Existing active settings retained; inspect the versioned configuration.");
 }
 bool LegacyStartupPresent() {
@@ -1276,13 +1353,16 @@ void UpdateEditorStatus() {
     if(powerStatus.contains(d.id))text+=L"\n"+powerStatus[d.id];else if(CachedFault(d.id))text+=L"\nHardware fault state: "+Wide(FaultCacheState(d.id))+L"; confirm physical wake before reset.";
     SetDlgItemTextW(editor,147,text.c_str());
 }
+std::wstring ControlText(HWND w,int id);
 bool ValidMonitorNumbers() {
+    auto name=ControlText(editor,169);auto encoded=Utf8(name);if((!name.empty()&&encoded.empty())||!ValidNickname(encoded))return false;
     if(selection<0)return true;
     for(int id:{140,143,145,150,151,152,155,156}){BOOL valid=false;GetDlgItemInt(editor,id,&valid,FALSE);if(!valid)return false;}return true;
 }
 void StoreMonitorDraft() {
     if(selection<0||selection>=static_cast<int>(editorDisplays.size())) return;
-    auto& p=draft.monitors[editorDisplays[selection].id];
+    auto id=editorDisplays[selection].id;auto encoded=Utf8(ControlText(editor,169));if(encoded.empty())draft.nicknames.erase(id);else draft.nicknames[id]=encoded;
+    auto& p=draft.monitors[id];
     p.enabled=IsDlgButtonChecked(editor,121)==BST_CHECKED;
     p.saver=static_cast<int>(SendDlgItemMessageW(editor,122,CB_GETCURSEL,0,0))-1;
     p.timeout=GetDlgItemInt(editor,140,nullptr,FALSE);p.input=static_cast<int>(SendDlgItemMessageW(editor,141,CB_GETCURSEL,0,0))-1;
@@ -1297,6 +1377,7 @@ void LoadMonitorDraft() {
     selection=static_cast<int>(SendDlgItemMessageW(editor,120,CB_GETCURSEL,0,0));
     if(selection<0||selection>=static_cast<int>(editorDisplays.size())) return;
     auto& d=editorDisplays[selection]; auto it=draft.monitors.find(d.id); Preference p=it==draft.monitors.end()?Preference{}:it->second;
+    SetDlgItemTextW(editor,169,Wide(draft.nicknames.contains(d.id)?draft.nicknames.at(d.id):"").c_str());EnableWindow(GetDlgItem(editor,169),d.identified);
     CheckDlgButton(editor,121,p.enabled?BST_CHECKED:BST_UNCHECKED); EnableWindow(GetDlgItem(editor,121),d.identified);
     SendDlgItemMessageW(editor,122,CB_SETCURSEL,p.saver+1,0);
     SetDlgItemInt(editor,140,p.timeout,FALSE);SetDlgItemInt(editor,143,p.blackAfter,FALSE);SetDlgItemInt(editor,145,p.powerAfter,FALSE);
@@ -1312,7 +1393,7 @@ void PopulateEditor(bool fromLive=true) {
     bool flags[]={draft.automatic,draft.perInput,draft.media,draft.perMedia,draft.muted,draft.debug};
     for(int i=0;i<6;++i) CheckDlgButton(editor,110+i,flags[i]?BST_CHECKED:BST_UNCHECKED);
     SendDlgItemMessageW(editor,120,CB_RESETCONTENT,0,0);
-    for(auto& d:editorDisplays) SendDlgItemMessageW(editor,120,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(d.label.c_str()));
+    for(auto& d:editorDisplays) SendDlgItemMessageW(editor,120,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(DisplayLabel(d,draft,editorDisplays).c_str()));
     SendDlgItemMessageW(editor,120,CB_SETCURSEL,0,0); LoadMonitorDraft();
 }
 void ImportLegacy(HWND w) {
@@ -1355,6 +1436,8 @@ void RefreshSettingsTheme() {
         if(window==setupWindow){RefreshSetupTypography();LayoutSetup(window);}
         ThemeChrome(window);RedrawWindow(window,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN);
     }
+    RefreshFlyoutTheme();
+    RefreshDisplayMapTheme();RefreshInspectorTheme();RefreshBackgroundEditorTheme();
 }
 void SettingsDpiChanged(HWND w,WPARAM wp,LPARAM lp,SettingsLayout& layout,HFONT& font,int height,int& position) {
     int dpi=HIWORD(wp);if(dpi<=0||!lp)return;
@@ -1447,18 +1530,17 @@ int workspaceScroll=0,setupScroll=0;
 Config pendingImport;bool importPending=false;std::vector<AppRule> workspaceRules;std::map<std::string,std::string> pendingMapping;std::vector<std::string> importSources;std::vector<Display> importTargets;
 std::vector<std::pair<HWND,Time>> identifyWindows;std::map<HWND,std::wstring> identifyLabels;
 bool StoreGlobalDraft(){BOOL a,b,c;draft.timeout=GetDlgItemInt(editor,101,&a,FALSE);draft.poll=GetDlgItemInt(editor,102,&b,FALSE);draft.padding=GetDlgItemInt(editor,103,&c,FALSE);if(!a||!b||!c||!ValidMonitorNumbers())return false;StoreMonitorDraft();bool* flags[]={&draft.automatic,&draft.perInput,&draft.media,&draft.perMedia,&draft.muted,&draft.debug};for(int i=0;i<6;++i)*flags[i]=IsDlgButtonChecked(editor,110+i)==BST_CHECKED;return true;}
-std::string RuleLines(const Policy& policy){std::string text;for(auto& r:policy.rules)text+=(r.kind?"A|":"F|")+std::string(r.global?"G|":"D|")+(r.nameOnly?"N|":"P|")+r.executable+"\r\n";return text;}
-bool ReadRules(const std::string& text,Policy& policy){std::vector<AppRule> rules;std::istringstream in(text);std::string line;while(std::getline(in,line)){line=Trim(line);if(line.empty())continue;if(line.size()<7||line[1]!='|'||line[3]!='|'||line[5]!='|'||(line[0]!='F'&&line[0]!='A')||(line[2]!='G'&&line[2]!='D')||(line[4]!='P'&&line[4]!='N'))return false;rules.push_back({line[0]=='A',line[2]=='G',line[4]=='N',line.substr(6)});}Config check;static_cast<Policy&>(check)=policy;check.rules=rules;Config parsed;std::string error;if(!Parse(Serialize(check),parsed,error))return false;policy.rules=parsed.rules;return true;}
 bool BackupPreferences(){DWORD error=0;std::string bytes;if(!ReadFileText(configPath,bytes,error)){if(error==ERROR_FILE_NOT_FOUND||error==ERROR_PATH_NOT_FOUND)return true;return false;}return WriteFileText(configPath+L".reset-backup-"+std::to_wstring(GetTickCount64()),bytes,error);}
-Config Portable(const Policy& policy){Config out;static_cast<Policy&>(out)=policy;out.automatic=false;for(auto& [id,p]:out.monitors){(void)id;p.hardware=false;}return out;}
+Config Portable(const Policy& policy){Config out;static_cast<Policy&>(out)=policy;out.automatic=false;for(auto& r:out.rules)for(auto& id:r.targets)out.monitors.try_emplace(id);for(auto& [id,p]:out.monitors){(void)id;p.hardware=false;p.powerAfter=0;}return out;}
 bool MapImported(const Policy& source,const std::map<std::string,std::string>& mapping,Policy& destination){Policy next=source;next.monitors.clear();next.automatic=false;std::set<std::string> targets;
-    if(mapping.size()!=source.monitors.size())return false;for(auto& [id,p]:source.monitors){auto m=mapping.find(id);if(m==mapping.end()||m->second.empty()||!targets.insert(m->second).second)return false;auto copy=p;copy.hardware=false;next.monitors[m->second]=copy;}destination=std::move(next);return true;}
+    auto portable=Portable(source);if(mapping.size()!=portable.monitors.size())return false;for(auto& [id,p]:portable.monitors){auto m=mapping.find(id);if(m==mapping.end()||m->second.empty()||!targets.insert(m->second).second)return false;auto copy=p;copy.hardware=false;copy.powerAfter=0;next.monitors[m->second]=copy;}
+    for(auto& r:next.rules){std::set<std::string> mapped;for(auto& id:r.targets){auto m=mapping.find(id);if(m==mapping.end())return false;mapped.insert(m->second);}r.targets=std::move(mapped);}destination=std::move(next);return true;}
 std::wstring SelectLocalFile(HWND owner,bool save,const wchar_t* title){std::vector<wchar_t> path(32768);OPENFILENAMEW d{};d.lStructSize=sizeof(d);d.hwndOwner=owner;d.lpstrFile=path.data();d.nMaxFile=32768;d.lpstrFilter=L"Local profile or diagnostics text\0*.ini;*.txt\0All files\0*.*\0";d.lpstrTitle=title;d.Flags=OFN_NOCHANGEDIR|OFN_PATHMUSTEXIST|(save?OFN_OVERWRITEPROMPT:OFN_FILEMUSTEXIST);if(save?GetSaveFileNameW(&d):GetOpenFileNameW(&d))return path.data();return {};}
 std::wstring ConflictText(){BOOL enabled=FALSE;UINT timeout=0;SetLastError(0);bool a=!!SystemParametersInfoW(SPI_GETSCREENSAVEACTIVE,0,&enabled,0);DWORD ae=a?0:GetLastError();SetLastError(0);bool b=!!SystemParametersInfoW(SPI_GETSCREENSAVETIMEOUT,0,&timeout,0);DWORD be=b?0:GetLastError();
     std::wstring result=L"Windows screensaver: "+(a?std::wstring(enabled?L"enabled":L"disabled"):L"query unavailable ("+std::to_wstring(ae)+L")")+L"\nTimeout: "+(b?std::to_wstring(timeout)+L" seconds":L"unavailable ("+std::to_wstring(be)+L")");
     Handle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0));unsigned count=0;PROCESSENTRY32W entry{};entry.dwSize=sizeof(entry);bool processQuery=snapshot&&Process32FirstW(snapshot,&entry);if(processQuery)do{for(auto name:{L"oled_aegis.exe",L"idledimmer.exe",L"oled-sleeper.exe",L"lively.exe"})if(_wcsicmp(entry.szExeFile,name)==0)++count;}while(Process32NextW(snapshot,&entry));
     result+=L"\nKnown controller names observed: "+(processQuery?std::to_wstring(count):L"query unavailable")+L" (advisory, not exhaustive).\nNo OS setting or process has been changed. Windows policy may be managed.\nUse Windows Settings > Personalization > Lock screen > Screen saver for details.";return result;}
-std::string SafeDiagnosticEvent(const std::string& event){for(unsigned i=0;i<=static_cast<unsigned>(Reason::HardwareFault);++i)if(event==ReasonText(static_cast<Reason>(i)))return event;for(auto allowed:{"saver fallback","owned process started","owned process exit wait expired","too many stopping sessions","dim alpha unavailable","worker creation failed","configuration failed","settings persistence failed","settings save rejected","hardware off accepted","hardware unavailable","hardware wake failed","hardware wake accepted"})if(event==allowed)return event;return "event redacted";}
+std::string SafeDiagnosticEvent(const std::string& event){for(unsigned i=0;i<=static_cast<unsigned>(Reason::Background);++i)if(event==ReasonText(static_cast<Reason>(i)))return event;for(auto allowed:{"saver fallback","owned process started","owned process exit wait expired","too many stopping sessions","dim alpha unavailable","worker creation failed","configuration failed","settings persistence failed","settings save rejected","hardware off accepted","hardware unavailable","hardware wake failed","hardware wake accepted"})if(event==allowed)return event;return "event redacted";}
 std::string SafeDiagnosticAlias(const std::string& alias){int number=0;if(alias.starts_with("Display ")&&Number(alias.substr(8),number)&&number>0&&number<=64)return alias;return "host";}
 std::string DiagnosticText(){std::ostringstream out;out<<"DAC — Display Activity Controls "<<kVersion<<"\nRedacted local diagnostics; no paths, identities, titles or recovery secrets.\n";
     auto& policy=controller.PolicyNow();out<<"automatic="<<policy.automatic<<" timeout="<<policy.timeout<<" poll="<<policy.poll<<" controllerInput="<<policy.controllerInput<<" profileActive="<<!controller.activeProfile.empty()<<"\n";
@@ -1474,7 +1556,7 @@ std::string DiagnosticText(){std::ostringstream out;out<<"DAC — Display Activi
     out<<"Coverage bins (0,1,2,3,4-7,8-15,16-31,32+ active nodes):";for(auto& count:wakeTiming.coverage)out<<' '<<count.load();out<<"\n";
     auto histogram=[&](const char* label,const TimingBins& bins){out<<label<<" bins (<=1,4,16,64,256,1024,4096,overflow):";for(auto& count:bins.bins)out<<' '<<count.load();out<<"\n";};
     histogram("raw us",wakeTiming.rawUs);histogram("dispatch us",wakeTiming.dispatchUs);histogram("paint us",wakeTiming.paintUs);histogram("timer us",wakeTiming.timerUs);histogram("heartbeat ms",wakeTiming.heartbeatMs);histogram("queue ms",wakeTiming.queueMs);
-    AdapterSnapshot sample;{std::lock_guard lock(observationLock);sample=adapters;}out<<"powerSource="<<static_cast<int>(sample.power)<<" xinputAvailable="<<sample.controllerAvailable<<" controllerConnected="<<sample.connected<<"\n";
+    out<<DisplayDiagnosticSummary();AdapterSnapshot sample;{std::lock_guard lock(observationLock);sample=adapters;}out<<"powerSource="<<static_cast<int>(sample.power)<<" xinputAvailable="<<sample.controllerAvailable<<" controllerConnected="<<sample.connected<<"\n";
     {std::lock_guard lock(diagnosticLock);for(auto& e:diagnosticEvents)out<<e.at<<' '<<SafeDiagnosticAlias(e.alias)<<' '<<SafeDiagnosticEvent(e.event)<<" code="<<e.code<<'\n';}return out.str();}
 void ExportDiagnostics(HWND owner){auto path=SelectLocalFile(owner,true,L"Export redacted diagnostics locally");if(path.empty())return;DWORD error=0;if(!WriteFileText(path,DiagnosticText(),error))Notice(L"Diagnostics export failed; choose a writable local file.");else Notice(L"Redacted diagnostics saved locally.");}
 void ExportSettings(HWND owner) {
@@ -1490,12 +1572,13 @@ void ImportSettings(HWND owner) {
     if(MessageBoxW(owner,L"Replace protection settings with this file?\n\nCurrent presentations will stop. Automatic activation and hardware power will be disabled in every imported policy. Display identities will be retained; disconnected displays remain inactive.\n\nExisting settings will be backed up before replacement. Appearance, tray preferences and Windows login registration are unchanged. Open settings drafts will require reopening before they can be saved.\n\nReview the imported configuration before explicitly enabling automation or hardware power.",L"Review settings import",MB_YESNO|MB_DEFBUTTON2|MB_ICONQUESTION)!=IDYES)return;
     if(Save(std::move(next),true,true))Notice(L"Settings imported with automatic activation and hardware power disabled. Reopen settings to review the imported values before enabling protection.");
 }
-void IdentifyDisplays(){for(auto& item:identifyWindows){{std::lock_guard lock(registryLock);ownedWindows.erase(item.first);}identifyLabels.erase(item.first);DestroyWindow(item.first);}identifyWindows.clear();for(auto& d:displays){int dpi=96;int width=MulDiv(360,dpi,96),height=120;HWND window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_LAYERED|WS_EX_TRANSPARENT,kClass,L"Identify display",WS_POPUP,d.rect.left+(d.rect.right-d.rect.left-width)/2,d.rect.top+(d.rect.bottom-d.rect.top-height)/2,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);if(!window)continue;dpi=static_cast<int>(GetDpiForWindow(window));width=MulDiv(360,dpi,96);height=MulDiv(120,dpi,96);SetWindowPos(window,nullptr,d.rect.left+(d.rect.right-d.rect.left-width)/2,d.rect.top+(d.rect.bottom-d.rect.top-height)/2,width,height,SWP_NOACTIVATE|SWP_NOZORDER);SetLayeredWindowAttributes(window,0,220,LWA_ALPHA);auto index=&d-displays.data()+1;identifyLabels[window]=L"Display "+std::to_wstring(index)+L"\n"+d.label+(d.identified?L"":L" (identity unavailable)");identifyWindows.push_back({window,GetTickCount64()+5000});{std::lock_guard lock(registryLock);ownedWindows.insert(window);}
+void IdentifyDisplays(){for(auto& item:identifyWindows){{std::lock_guard lock(registryLock);ownedWindows.erase(item.first);}identifyLabels.erase(item.first);DestroyWindow(item.first);}identifyWindows.clear();for(auto& d:displays){int dpi=96;int width=MulDiv(360,dpi,96),height=120;HWND window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW|WS_EX_LAYERED|WS_EX_TRANSPARENT,kClass,L"Identify display",WS_POPUP,d.rect.left+(d.rect.right-d.rect.left-width)/2,d.rect.top+(d.rect.bottom-d.rect.top-height)/2,width,height,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr);if(!window)continue;dpi=static_cast<int>(GetDpiForWindow(window));width=MulDiv(360,dpi,96);height=MulDiv(120,dpi,96);SetWindowPos(window,nullptr,d.rect.left+(d.rect.right-d.rect.left-width)/2,d.rect.top+(d.rect.bottom-d.rect.top-height)/2,width,height,SWP_NOACTIVATE|SWP_NOZORDER);SetLayeredWindowAttributes(window,0,220,LWA_ALPHA);identifyLabels[window]=DisplayLabel(d,controller.config,displays);identifyWindows.push_back({window,GetTickCount64()+5000});{std::lock_guard lock(registryLock);ownedWindows.insert(window);}
 #ifndef DAC_HARNESS
         ShowWindow(window,SW_SHOWNOACTIVATE);
 #endif
     }}
-void RefreshRuleList(){SendDlgItemMessageW(workspace,320,LB_RESETCONTENT,0,0);for(auto& r:workspaceRules){auto label=std::wstring(r.kind?L"Ignore audio":L"Keep foreground awake")+L" | "+(r.global?L"Global":L"Its attributed displays")+L" | "+(r.nameOnly?L"Name-only: ":L"Full path: ")+Wide(r.executable);SendDlgItemMessageW(workspace,320,LB_ADDSTRING,0,reinterpret_cast<LPARAM>(label.c_str()));}}
+void RefreshRuleList(){SendDlgItemMessageW(workspace,320,LB_RESETCONTENT,0,0);for(auto& r:workspaceRules){auto action=r.kind==0?L"Keep foreground awake":r.kind==1?L"Ignore audio":r.kind==2?L"While running":L"Unknown rule";auto scope=r.global?L"Explicit global":r.kind==2?L"Explicit stable targets":L"Its attributed displays";auto label=std::wstring(r.enabled?L"Enabled | ":L"Disabled | ")+action+L" | "+scope+L" | "+(r.nameOnly?L"Filename-only (broader): ":L"Full path: ")+Wide(r.executable);SendDlgItemMessageW(workspace,320,LB_ADDSTRING,0,reinterpret_cast<LPARAM>(label.c_str()));}}
+#include "background-settings.hpp"
 bool ApplyWorkspaceRules(){Config c=draft;c.rules=workspaceRules;Config parsed;std::string error;if(!Parse(Serialize(c),parsed,error))return false;draft.rules=parsed.rules;return true;}
 void RefreshWorkspaceList(){SendDlgItemMessageW(workspace,300,CB_RESETCONTENT,0,0);for(auto& p:draft.profiles)SendDlgItemMessageW(workspace,300,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(Wide(p.name).c_str()));if(!draft.profiles.empty())SendDlgItemMessageW(workspace,300,CB_SETCURSEL,0,0);}
 void WorkspaceSelection(){int index=static_cast<int>(SendDlgItemMessageW(workspace,300,CB_GETCURSEL,0,0));if(index<0||index>=static_cast<int>(draft.profiles.size()))return;auto& p=draft.profiles[index];SetDlgItemTextW(workspace,301,Wide(p.name).c_str());SendDlgItemMessageW(workspace,302,CB_SETCURSEL,p.trigger,0);SetDlgItemTextW(workspace,303,Wide(ClockText(p.start)).c_str());SetDlgItemTextW(workspace,304,Wide(ClockText(p.end)).c_str());SetDlgItemTextW(workspace,305,Wide(p.app).c_str());CheckDlgButton(workspace,306,p.nameOnly?BST_CHECKED:BST_UNCHECKED);}
@@ -1509,9 +1592,11 @@ LRESULT CALLBACK WorkspaceProc(HWND w,UINT msg,WPARAM wp,LPARAM lp){LRESULT resu
         else if(id==318){int index=static_cast<int>(SendDlgItemMessageW(w,300,CB_GETCURSEL,0,0));if(index>=0&&index<static_cast<int>(draft.profiles.size())){auto retained=draft.monitors;static_cast<Policy&>(draft)=draft.profiles[index].policy;for(auto& [key,p]:retained)draft.monitors.try_emplace(key,p);DestroyWindow(w);PopulateEditor(false);SetWindowTextW(editor,L"Profile loaded into unsaved draft — review, then capture to replace profile");}return 0;}
         else if(id==323){AppRule rule;rule.kind=static_cast<int>(SendDlgItemMessageW(w,340,CB_GETCURSEL,0,0));rule.global=SendDlgItemMessageW(w,341,CB_GETCURSEL,0,0)==1;rule.nameOnly=SendDlgItemMessageW(w,342,CB_GETCURSEL,0,0)==1;rule.executable=Utf8(ControlText(w,343));Config check=draft;check.rules=workspaceRules;check.rules.push_back(rule);Config parsed;std::string error;if(!Parse(Serialize(check),parsed,error)){Notice(L"Choose an executable path (preferred), or an explicit filename-only match. Maximum 32 rules.");return 0;}workspaceRules=parsed.rules;RefreshRuleList();}
         else if(id==324){int index=static_cast<int>(SendDlgItemMessageW(w,320,LB_GETCURSEL,0,0));if(index>=0&&index<static_cast<int>(workspaceRules.size())){workspaceRules.erase(workspaceRules.begin()+index);RefreshRuleList();}}
-        else if(id==325){auto path=SelectLocalFile(w,false,L"Choose application executable");if(!path.empty()){SetDlgItemTextW(w,343,path.c_str());SendDlgItemMessageW(w,342,CB_SETCURSEL,0,0);}}
+        else if(id==325){auto path=SelectApplication(w);if(!path.empty()){SetDlgItemTextW(w,343,path.c_str());SendDlgItemMessageW(w,342,CB_SETCURSEL,0,0);}}
+        else if(id==326)ShowBackgroundRuleEditor();
+        else if(id==327){int index=static_cast<int>(SendDlgItemMessageW(w,320,LB_GETCURSEL,0,0));if(index>=0)ShowBackgroundRuleEditor(index);}
         else if(id==319&&importPending){int from=static_cast<int>(SendDlgItemMessageW(w,331,CB_GETCURSEL,0,0)),to=static_cast<int>(SendDlgItemMessageW(w,332,CB_GETCURSEL,0,0));if(from>=0&&from<static_cast<int>(importSources.size())&&to>=0&&to<=static_cast<int>(importTargets.size())){auto target=to?importTargets[to-1].id:importSources[from];if(to&&!std::any_of(displays.begin(),displays.end(),[&](auto& d){return d.id==target&&d.identified;})){Notice(L"Selected display changed or disconnected; re-import and choose its stable identity explicitly.");return 0;}if(!to&&std::any_of(displays.begin(),displays.end(),[&](auto& d){return d.id==target;})){Notice(L"This identity is connected: select its local display explicitly.");return 0;}pendingMapping[importSources[from]]=target;SetDlgItemTextW(w,330,(L"Explicit mappings: "+std::to_wstring(pendingMapping.size())+L" / "+std::to_wstring(importSources.size())+L". Map every source, then Apply import.").c_str());}}
-        else if(id==315){auto path=SelectLocalFile(w,false,L"Import profile; explicit display mapping required");if(path.empty())return 0;std::string text,error;DWORD code=0;Config parsed;if(!ReadFileText(path,text,code)||!Parse(text,parsed,error)||!parsed.profiles.empty()){Notice(L"Invalid profile file; export a single profile first.");return 0;}pendingImport=parsed;importPending=true;pendingMapping.clear();importSources.clear();SendDlgItemMessageW(w,331,CB_RESETCONTENT,0,0);for(auto& [key,p]:parsed.monitors){(void)p;importSources.push_back(key);SendDlgItemMessageW(w,331,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(Wide(key).c_str()));}SendDlgItemMessageW(w,331,CB_SETCURSEL,0,0);SendDlgItemMessageW(w,332,CB_RESETCONTENT,0,0);SendDlgItemMessageW(w,332,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Retain as disconnected identity"));importTargets=displays;for(auto& d:importTargets)SendDlgItemMessageW(w,332,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(d.label.c_str()));SendDlgItemMessageW(w,332,CB_SETCURSEL,static_cast<WPARAM>(-1),0);SetDlgItemTextW(w,330,L"Choose each imported source identity and its local display, then Map selection. Hardware permission is removed.");}
+        else if(id==315){auto path=SelectLocalFile(w,false,L"Import profile; explicit display mapping required");if(path.empty())return 0;std::string text,error;DWORD code=0;Config parsed;if(!ReadFileText(path,text,code)||!Parse(text,parsed,error)||!parsed.profiles.empty()){Notice(L"Invalid profile file; export a single profile first.");return 0;}parsed=Portable(parsed);pendingImport=parsed;importPending=true;pendingMapping.clear();importSources.clear();SendDlgItemMessageW(w,331,CB_RESETCONTENT,0,0);for(auto& [key,p]:parsed.monitors){(void)p;importSources.push_back(key);SendDlgItemMessageW(w,331,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(Wide(key).c_str()));}SendDlgItemMessageW(w,331,CB_SETCURSEL,0,0);SendDlgItemMessageW(w,332,CB_RESETCONTENT,0,0);SendDlgItemMessageW(w,332,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(L"Retain as disconnected identity"));importTargets=displays;for(auto& d:importTargets)SendDlgItemMessageW(w,332,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(DisplayLabel(d,draft,editorDisplays).c_str()));SendDlgItemMessageW(w,332,CB_SETCURSEL,static_cast<WPARAM>(-1),0);SetDlgItemTextW(w,330,L"Choose each imported source identity and its local display, then Map selection. Hardware permission is removed.");}
         else if(id==316&&importPending){Policy imported;auto name=Utf8(ControlText(w,301));if(!MapImported(pendingImport,pendingMapping,imported)||name.empty()||draft.profiles.size()>=8||std::any_of(draft.profiles.begin(),draft.profiles.end(),[&](auto& p){return p.name==name;})){Notice(L"Map every imported display uniquely and choose a new profile name.");return 0;}draft.profiles.push_back({name,"",0,0,0,false,imported});importPending=false;RefreshWorkspaceList();SetDlgItemTextW(w,330,L"Mapped profile added to unsaved draft. Load it into main settings to review and deliberately renew automatic/hardware choices; capture changes back to the profile.");}
         else if(id==321){if(!ApplyWorkspaceRules()){Notice(L"Application rules could not be validated. Choose a full executable path or an explicit filename-only match.");return 0;}DestroyWindow(w);}
         else if(id==322||id==IDCANCEL)DestroyWindow(w);return 0;}
@@ -1529,7 +1614,9 @@ void ShowWorkspace(){if(workspace){SetForegroundWindow(workspace);return;}if(!St
     for(int i=0;i<3;++i)control(L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_TABSTOP,16+i*238,480,224,140,340+i);
     for(auto label:{L"Keep foreground awake",L"Ignore this app's audio"})SendDlgItemMessageW(workspace,340,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));for(auto label:{L"Its attributed displays",L"Global"})SendDlgItemMessageW(workspace,341,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));for(auto label:{L"Full executable path",L"Filename only (less precise)"})SendDlgItemMessageW(workspace,342,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));for(int id:{340,341,342})SendDlgItemMessageW(workspace,id,CB_SETCURSEL,0,0);
     control(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL|WS_TABSTOP,16,523,480,28,343);control(L"BUTTON",L"Choose executable…",BS_PUSHBUTTON|WS_TABSTOP,510,523,216,28,325);control(L"BUTTON",L"Add rule",BS_PUSHBUTTON|WS_TABSTOP,16,565,345,30,323);control(L"BUTTON",L"Remove selected rule",BS_PUSHBUTTON|WS_TABSTOP,380,565,346,30,324);
-    control(L"LISTBOX",L"",WS_BORDER|LBS_NOTIFY|WS_VSCROLL|WS_TABSTOP,16,611,710,122,320);workspaceRules=draft.rules;RefreshRuleList();control(L"STATIC",L"",0,16,747,710,82,330);
+    control(L"LISTBOX",L"",WS_BORDER|LBS_NOTIFY|WS_VSCROLL|WS_TABSTOP,16,611,710,92,320);workspaceRules=draft.rules;RefreshRuleList();
+    control(L"BUTTON",L"Add background running rule…",BS_PUSHBUTTON|WS_TABSTOP,16,709,345,30,326);control(L"BUTTON",L"Edit selected background rule…",BS_PUSHBUTTON|WS_TABSTOP,380,709,346,30,327);
+    control(L"STATIC",L"",0,16,747,710,82,330);
     control(L"STATIC",L"Imported source identity / explicit local target",0,16,846,710,25,0);control(L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_VSCROLL|WS_TABSTOP,16,879,710,180,331);control(L"COMBOBOX",L"",CBS_DROPDOWNLIST|WS_VSCROLL|WS_TABSTOP,16,924,710,180,332);control(L"BUTTON",L"Map selected source to target",BS_PUSHBUTTON|WS_TABSTOP,16,969,345,30,319);control(L"BUTTON",L"Apply complete import",BS_PUSHBUTTON|WS_TABSTOP,380,969,346,30,316);
     control(L"STATIC",L"Manual selection > foreground app > schedule > base; first listed match wins. Changes debounce for one second. Clock changes use current local time. Import starts with automation and DDC off; load the imported policy into the main draft to review it, then capture it back.",0,16,1024,710,100,0);
     control(L"BUTTON",L"Apply rules to draft / close",BS_PUSHBUTTON|WS_TABSTOP,16,1178,350,32,321);control(L"BUTTON",L"Close",BS_PUSHBUTTON|WS_TABSTOP,388,1178,338,32,322);RefreshWorkspaceList();LayoutSettings(workspace,workspaceLayout,1240,workspaceScroll);EnableWindow(editor,FALSE);
@@ -1552,9 +1639,7 @@ void RefreshSetupTypography(){
     if(setupHeadingFont)DeleteObject(setupHeadingFont);setupHeadingFont=replacement;
 }
 std::wstring SetupDisplayLabel(size_t index){
-    const auto& d=setupDisplays[index];auto separator=d.label.find(L" — ");
-    auto name=separator==std::wstring::npos?d.label:d.label.substr(separator+3);
-    return L"Display "+std::to_wstring(index+1)+L" — "+name;
+    return DisplayLabel(setupDisplays[index],setupDraft,setupDisplays);
 }
 bool StoreSetupDraft(){
     BOOL valid=FALSE;UINT timeout=GetDlgItemInt(setupWindow,404,&valid,FALSE);
@@ -1713,12 +1798,12 @@ LRESULT CALLBACK EditorProc(HWND w,UINT msg,WPARAM wp,LPARAM lp) {
     if(msg==WM_COMMAND) {
         int id=LOWORD(wp);
         if(id==120&&HIWORD(wp)==CBN_SELCHANGE) {
-            if(!ValidMonitorNumbers()){SendDlgItemMessageW(editor,120,CB_SETCURSEL,selection,0);MessageBoxW(w,L"Monitor times must be nonnegative integers.",L"Invalid settings",MB_OK);return 0;}
+            if(!ValidMonitorNumbers()){SendDlgItemMessageW(editor,120,CB_SETCURSEL,selection,0);MessageBoxW(w,L"Use nonnegative monitor times and a valid name (64 Unicode characters / 256 UTF-8 bytes; no controls).",L"Invalid settings",MB_OK);return 0;}
             StoreMonitorDraft(); LoadMonitorDraft();
         }
         else if(id==130) {
             if(!EditorCurrent()){SetWindowTextW(w,L"SETTINGS CHANGED — Reopen before saving | DAC — Display Activity Controls");return 0;}
-            if(!ValidMonitorNumbers()){MessageBoxW(w,L"Monitor times must be nonnegative integers.",L"Invalid settings",MB_OK);return 0;}
+            if(!ValidMonitorNumbers()){MessageBoxW(w,L"Use nonnegative monitor times and a valid name (64 Unicode characters / 256 UTF-8 bytes; no controls).",L"Invalid settings",MB_OK);return 0;}
             StoreMonitorDraft(); BOOL ok1,ok2,ok3;
             draft.timeout=GetDlgItemInt(w,101,&ok1,FALSE); draft.poll=GetDlgItemInt(w,102,&ok2,FALSE); draft.padding=GetDlgItemInt(w,103,&ok3,FALSE);
             if(!ok1||!ok2||!ok3) { MessageBoxW(w,L"Timeout, interval and padding must be nonnegative integers.",L"Invalid settings",MB_OK); return 0; }
@@ -1732,8 +1817,8 @@ LRESULT CALLBACK EditorProc(HWND w,UINT msg,WPARAM wp,LPARAM lp) {
         else if(id==160){if(StoreGlobalDraft()&&selection>=0)StartDraftPreview(draft.monitors[editorDisplays[selection].id]);}
         else if(id==161)ShowWorkspace();else if(id==162)ShowSetup();else if(id==163)IdentifyDisplays();else if(id==164)ExportDiagnostics(w);else if(id==165)MessageBoxW(w,ConflictText().c_str(),L"Read-only conflict diagnostics",MB_OK);
         else if(id==166||id==167){if(MessageBoxW(w,L"Back up saved preferences, then reset the selected monitor or all preferences? Hardware recovery markers remain untouched; unsaved drafts will be replaced.",L"Reset preferences",MB_YESNO|MB_ICONQUESTION)==IDYES){Config next=id==167?Config{}:controller.config;if(id==166&&selection>=0){auto key=editorDisplays[selection].id;next.monitors[key]=Preference{};for(auto& profile:next.profiles)profile.policy.monitors[key]=Preference{};}if(Save(next,true,true))PopulateEditor();}}
-        else if(id==168){if(StoreGlobalDraft()){auto retained=draft;auto selected=selection>=0?editorDisplays[selection].id:"";editorDisplays=displays;SendDlgItemMessageW(editor,120,CB_RESETCONTENT,0,0);int selectedIndex=0;for(size_t i=0;i<editorDisplays.size();++i){auto& d=editorDisplays[i];SendDlgItemMessageW(editor,120,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(d.label.c_str()));if(d.id==selected)selectedIndex=static_cast<int>(i);}draft=retained;SendDlgItemMessageW(editor,120,CB_SETCURSEL,selectedIndex,0);LoadMonitorDraft();}}
-        else if(id==149){if(ValidMonitorNumbers())ShowSaverOptions();else MessageBoxW(w,L"Monitor times must be nonnegative integers.",L"Invalid settings",MB_OK);}
+        else if(id==168){if(StoreGlobalDraft()){auto retained=draft;auto selected=selection>=0?editorDisplays[selection].id:"";editorDisplays=displays;SendDlgItemMessageW(editor,120,CB_RESETCONTENT,0,0);int selectedIndex=0;for(size_t i=0;i<editorDisplays.size();++i){auto& d=editorDisplays[i];SendDlgItemMessageW(editor,120,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(DisplayLabel(d,draft,editorDisplays).c_str()));if(d.id==selected)selectedIndex=static_cast<int>(i);}draft=retained;SendDlgItemMessageW(editor,120,CB_SETCURSEL,selectedIndex,0);LoadMonitorDraft();}}
+        else if(id==149){if(ValidMonitorNumbers())ShowSaverOptions();else MessageBoxW(w,L"Use nonnegative monitor times and a valid name (64 Unicode characters / 256 UTF-8 bytes; no controls).",L"Invalid settings",MB_OK);}
         else if(id==148&&selection>=0&&selection<static_cast<int>(editorDisplays.size())) {
             auto selected=editorDisplays[selection].id;bool active=false;for(auto& task:powerTasks)if(task->id==selected)active=true;
             if(active)Notice(L"Stop this monitor and wait for hardware cleanup before resetting its fault.");
@@ -1804,7 +1889,8 @@ void ShowSettings() {
     control(L"STATIC",L"Native scene theme / maximum seconds to black / rotation seconds (0 disables)",0,16,910,710,26,0);control(L"COMBOBOX",L"",CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_TABSTOP,16,942,214,150,154);for(auto label:{L"Dim neutral",L"Dim violet",L"Dim teal"})SendDlgItemMessageW(editor,154,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(label));control(L"EDIT",L"",WS_BORDER|ES_NUMBER|WS_TABSTOP,252,942,214,26,155);control(L"EDIT",L"",WS_BORDER|ES_NUMBER|WS_TABSTOP,488,942,214,26,156);
     const wchar_t* actions[]={L"Preview unsaved draft",L"Profiles / application rules…",L"Quick setup…",L"Identify displays",L"Export diagnostics…",L"Read-only conflicts…",L"Reset selected monitor…",L"Reset all preferences…",L"Refresh display list"};
     for(int i=0;i<9;++i)control(L"BUTTON",actions[i],BS_PUSHBUTTON|WS_TABSTOP,16+(i%3)*236,988+(i/3)*43,220,32,160+i);
-    control(L"STATIC",L"Dim is overlay opacity, not hardware brightness. Status refresh retains drafts.\nPreview is contained and unsaved; tray testing uses the saved full-monitor assignment.",0,16,1124,710,54,0);
+    control(L"STATIC",L"Friendly &name (all profiles; empty uses OS label; 64 Unicode characters)",0,16,1124,710,24,0);
+    auto nameEdit=control(L"EDIT",L"",WS_BORDER|ES_AUTOHSCROLL|WS_TABSTOP,16,1152,686,28,169);SendMessageW(nameEdit,EM_SETLIMITTEXT,128,0);
     PopulateEditor();LayoutSettings(editor,editorLayout,1240,editorScroll);SetTimer(editor,1,500,nullptr);
 #ifndef DAC_HARNESS
     ShowWindow(editor,SW_SHOWNORMAL);
@@ -1823,6 +1909,10 @@ bool Span(int saver,bool sticky=false,const std::string& source="") {
     for(auto& d:displays) {auto& r=spanningDisplay.rect;r.left=std::min(r.left,d.rect.left);r.top=std::min(r.top,d.rect.top);r.right=std::max(r.right,d.rect.right);r.bottom=std::max(r.bottom,d.rect.bottom);}
     controller.nodes["@span"]={};controller.Manual("@span",GetTickCount64(),sticky,saver);Reconcile();return true;
 }
+#include "display-controls.hpp"
+#include "flyout.hpp"
+#include "display-map.hpp"
+#include "inspector.hpp"
 void Menu(HWND w) {
     HMENU menu=CreatePopupMenu(); if(!menu) return;
     HMENU presentations=CreatePopupMenu(),automation=CreatePopupMenu(),displayMenu=CreatePopupMenu(),profilesMenu=CreatePopupMenu(),settingsMenu=CreatePopupMenu(),diagnosticsMenu=CreatePopupMenu();
@@ -1840,8 +1930,9 @@ void Menu(HWND w) {
     for(int i=0;i<4;++i){int minutes[]={5,15,30,60};auto label=L"Snooze automatic for "+std::to_wstring(minutes[i])+L" minutes";append(automation,MF_STRING,10+i,label.c_str());}
     auto remaining=controller.snoozeUntil>GetTickCount64()?(controller.snoozeUntil-GetTickCount64()+999)/1000:0;auto resume=L"Resume now (snooze "+std::to_wstring(remaining)+L" s remaining)";append(automation,MF_STRING,14,resume.c_str());
     append(displayMenu,MF_STRING,16,L"Identify displays");
+    append(menu,MF_STRING,61,L"Display controls…");
     append(displayMenu,MF_SEPARATOR,0,nullptr);
-    append(profilesMenu,MF_STRING,29,L"Select profiles automatically");for(size_t i=0;i<controller.config.profiles.size();++i)append(profilesMenu,MF_STRING,30+i,Wide(controller.config.profiles[i].name).c_str());
+    append(profilesMenu,MF_STRING,29,L"Select profiles automatically");for(size_t i=0;i<controller.config.profiles.size();++i)append(profilesMenu,MF_STRING,30+i,MenuLabel(Wide(controller.config.profiles[i].name)).c_str());
     append(settingsMenu,MF_STRING,3,L"Settings / import…");
     append(settingsMenu,MF_STRING,15,L"Quick setup…");
     append(settingsMenu,MF_SEPARATOR,0,nullptr);
@@ -1852,6 +1943,7 @@ void Menu(HWND w) {
     append(settingsMenu,MF_STRING|(integration.trayAction==0?MF_CHECKED:0),53,L"Tray click: start / stop");
     append(settingsMenu,MF_STRING|(integration.trayAction==1?MF_CHECKED:0),54,L"Tray click: Quick setup");
     append(settingsMenu,MF_STRING|(integration.trayAction==2?MF_CHECKED:0),55,L"Tray click: Advanced settings");
+    append(settingsMenu,MF_STRING|(integration.trayAction==3?MF_CHECKED:0),62,L"Tray click: Display controls");
     append(settingsMenu,MF_STRING|(integration.startupSetup?MF_CHECKED:0),56,L"Open Quick setup when DAC starts");
     append(settingsMenu,MF_STRING|(LoginStartupState()==1?MF_CHECKED:0),57,L"Start DAC when I sign in");
     append(settingsMenu,MF_SEPARATOR,0,nullptr);
@@ -1859,6 +1951,7 @@ void Menu(HWND w) {
     append(settingsMenu,MF_STRING,59,L"Import all protection settings…");
     append(settingsMenu,MF_STRING,60,L"About DAC and recovery controls…");
     append(diagnosticsMenu,MF_STRING,18,L"Read-only conflict diagnostics…");
+    append(diagnosticsMenu,MF_STRING,64,L"Display inspector / OS-only rescan…");
     append(diagnosticsMenu,MF_STRING,17,L"Export redacted diagnostics…");
     for(size_t i=0;i<displays.size();++i) {
         auto& d=displays[i];menuIds.push_back(d.id); HMENU sub=CreatePopupMenu(); if(!sub){menuReady=false;continue;}
@@ -1869,12 +1962,13 @@ void Menu(HWND w) {
         append(sub,MF_STRING|(enabled?0:MF_GRAYED),103+i*6,L"Toggle sticky presentation");
         append(sub,MF_STRING|(enabled?0:MF_GRAYED),104+i*6,L"Black this monitor");
         append(sub,MF_STRING|((enabled&&controller.Pref(d.id).hardware)?0:MF_GRAYED),105+i*6,L"Hardware off now (opt-in)");
-        auto label=d.label+L" — "+ExplanationText(d.id);
+        auto label=MenuLabel(DisplayLabel(d,controller.config,displays)+L" — "+ExplanationText(d.id));
         append(displayMenu,MF_POPUP,reinterpret_cast<UINT_PTR>(sub),label.c_str());
     }
     append(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(presentations),L"Presentations");
     append(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(automation),L"Automation");
     append(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(displayMenu),L"Displays");
+    append(menu,MF_STRING,63,L"Visual display map…");
     append(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(profilesMenu),L"Profiles");
     append(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(settingsMenu),L"Settings && setup");
     append(menu,MF_POPUP,reinterpret_cast<UINT_PTR>(diagnosticsMenu),L"Diagnostics");
@@ -1892,10 +1986,12 @@ void Menu(HWND w) {
         if(!Span(saver,false,source))Notice(L"Spanning requires every connected monitor to be identified and enabled, and protection unpaused.");}
     else if(choice==7) {StopMonitor("@span");for(auto& d:displays)if(d.identified)controller.Manual(d.id,GetTickCount64(),false,-1);Reconcile();}
     else if(choice>=10&&choice<=14){int minutes[]={5,15,30,60,0};controller.Snooze(GetTickCount64(),minutes[choice-10]);Reconcile();}
-    else if(choice==15)ShowSetup();else if(choice==16)IdentifyDisplays();else if(choice==17)ExportDiagnostics(w);else if(choice==18)MessageBoxW(w,ConflictText().c_str(),L"Read-only conflicts",MB_OK);
+    else if(choice==63)ShowDisplayMap();else if(choice==64)ShowInspector();else if(choice==15)ShowSetup();else if(choice==16)IdentifyDisplays();else if(choice==17)ExportDiagnostics(w);else if(choice==18)MessageBoxW(w,ConflictText().c_str(),L"Read-only conflicts",MB_OK);
     else if(choice>=50&&choice<=56){auto next=integration;if(choice<=52)next.appearance=static_cast<int>(choice)-50;
         else if(choice<=55)next.trayAction=static_cast<int>(choice)-53;else next.startupSetup=!next.startupSetup;
         DWORD error=0;if(WriteIntegrationSettings(next,error))RefreshSettingsTheme();else Notice((L"Application preference could not be saved (Windows error "+std::to_wstring(error)+L"). Previous settings retained.").c_str());}
+    else if(choice==61)ShowFlyout();
+    else if(choice==62){auto next=integration;next.trayAction=3;DWORD error=0;if(!WriteIntegrationSettings(next,error))Notice(L"Tray preference could not be saved; previous settings retained.");}
     else if(choice==57){DWORD error=0;if(!SetLoginStartup(LoginStartupState()!=1,error))Notice((L"Login startup was not changed. Check profile permissions and remove conflicting DAC startup entries yourself (Windows error "+std::to_wstring(error)+L").").c_str());}
     else if(choice==58)ExportSettings(w);else if(choice==59)ImportSettings(w);
     else if(choice==60)MessageBoxW(w,L"DAC 0.1.0 — Display Activity Controls\nNative Windows standalone development candidate.\n\nEmergency exit: Ctrl+Alt+Shift+F12\nCommand-line recovery: DAC.exe --stop\n\nAutomatic activation and hardware power are opt-in. Hardware power is experimental; physical recovery may be necessary if a monitor/driver does not respond.\n\nAppearance, tray action and optional login startup are in Settings && setup. Windows high contrast takes priority.\n\nMIT License — Copyright 2026 StarlightDaemon\nTheme tokens: Fujin v0.1.0 (MIT).",L"About DAC",MB_OK|MB_ICONINFORMATION);
@@ -1943,13 +2039,13 @@ LRESULT CALLBACK WindowProc(HWND w,UINT msg,WPARAM wp,LPARAM lp) {
         else if(wp==10){POINT point{};if(GetCursorPos(&point)){HMONITOR monitor=MonitorFromPoint(point,MONITOR_DEFAULTTONULL);StopMonitor("@span");for(auto& d:displays)if(d.handle==monitor&&d.identified){if(Running(controller.nodes[d.id].state))StopMonitor(d.id);else controller.Manual(d.id,GetTickCount64(),true);}}}Reconcile();return 0;
     case WM_INPUT:Count(wakeTiming.receipts);Input(reinterpret_cast<HRAWINPUT>(lp));break;
     case kTray:if(lp==WM_RBUTTONUP) Menu(w); else if(lp==WM_LBUTTONUP) {
-        if(integration.trayAction==1)ShowSetup();else if(integration.trayAction==2)ShowSettings();
+        if(integration.trayAction==1)ShowSetup();else if(integration.trayAction==2)ShowSettings();else if(integration.trayAction==3)ShowFlyout();
         else if(controller.Any()) Reset();else ManualAll();
     } return 0;
     case kReload:Reload();return 0;
     case kIntegration:ReadIntegrationSettings();RefreshSettingsTheme();return 0;
     case WM_SETTINGCHANGE:case WM_THEMECHANGED:case WM_SYSCOLORCHANGE:RefreshSettingsTheme();return 0;
-    case WM_DISPLAYCHANGE:case WM_DPICHANGED:if(w==ui){Reset(ResetCause::Topology);topologyPending=true;}else if(msg==WM_DPICHANGED&&lp){auto r=reinterpret_cast<RECT*>(lp);SetWindowPos(w,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);}return 0;
+    case WM_DISPLAYCHANGE:case WM_DPICHANGED:if(w==ui){++topologyEpoch;Reset(ResetCause::Topology);controller.InvalidateBackground();topologyPending=true;displaySnapshot.stale=true;}else if(msg==WM_DPICHANGED&&lp){auto r=reinterpret_cast<RECT*>(lp);SetWindowPos(w,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);}return 0;
     case WM_WTSSESSION_CHANGE:
         if(wp==WTS_SESSION_LOCK||wp==WTS_CONSOLE_DISCONNECT||wp==WTS_REMOTE_DISCONNECT) locked=true;
         if(wp==WTS_SESSION_UNLOCK||wp==WTS_CONSOLE_CONNECT||wp==WTS_REMOTE_CONNECT) {locked=SessionLocked();topologyPending=true;}
@@ -1964,7 +2060,7 @@ LRESULT CALLBACK WindowProc(HWND w,UINT msg,WPARAM wp,LPARAM lp) {
         Measure timerMeasure{wakeTiming.timerMaxUs,&wakeTiming.timerUs};Count(wakeTiming.heartbeatSamples);auto heartbeat=GetTickCount64();
         if(heartbeatAt){Maximum(wakeTiming.heartbeatMaxMs,heartbeat-heartbeatAt);Sample(wakeTiming.heartbeatMs,heartbeat-heartbeatAt);}heartbeatAt=heartbeat;
         if(WaitForSingleObject(stopEvent,0)==WAIT_OBJECT_0) { PostMessageW(w,kQuit,0,0); return 0; }
-        if(topologyPending) { RefreshTopology(); }
+        MaintainDisplayScan(heartbeat);
         auto now=GetTickCount64();
         for(auto it=identifyWindows.begin();it!=identifyWindows.end();){if(now>=it->second){{std::lock_guard lock(registryLock);ownedWindows.erase(it->first);}identifyLabels.erase(it->first);DestroyWindow(it->first);it=identifyWindows.erase(it);}else ++it;}
 #ifdef DAC_HARNESS
@@ -1980,12 +2076,13 @@ LRESULT CALLBACK WindowProc(HWND w,UINT msg,WPARAM wp,LPARAM lp) {
 #ifdef DAC_HARNESS
         }
 #endif
-        SYSTEMTIME local{};GetLocalTime(&local);if(controller.SelectPolicy(now,local.wHour*60+local.wMinute)){InvalidateMedia();nextPoll=0;}
-        if(now>=nextPoll) { Media m; {std::lock_guard lock(observationLock);m=observation;} controller.Tick(now,m);nextPoll=now+std::min(controller.PolicyNow().poll,250); }
+        SYSTEMTIME local{};GetLocalTime(&local);if(controller.SelectPolicy(now,local.wHour*60+local.wMinute)){if(!controller.backgroundOnlyPolicyChange)InvalidateMedia();nextPoll=0;}
+        MaintainBackground(now);
+        if(now>=nextPoll&&!topologyPending) { Media m; {std::lock_guard lock(observationLock);m=observation;} controller.Tick(now,m);nextPoll=now+std::min(controller.PolicyNow().poll,250); }
         // Identity failures and clone sources are ineligible even for automatic policy.
         for(auto& d:displays) if(!d.identified) controller.nodes[d.id].state=State::Disabled;
         controller.hardwareFaults.clear();for(size_t i=0;i<displays.size();++i){auto& d=displays[i];bool activePower=false;for(auto& task:powerTasks)if(task->id==d.id&&!task->done&&task->status<=1)activePower=true;if(CachedFault(d.id)&&!activePower)controller.hardwareFaults.insert(d.id);Media reasonObservation;{std::lock_guard lock(observationLock);reasonObservation=observation;}auto e=controller.Explain(d.id,reasonObservation,now);if(!lastReasons.contains(d.id)||lastReasons[d.id]!=e.primary){lastReasons[d.id]=e.primary;Record("Display "+std::to_string(i+1),ReasonText(e.primary));}}
-        Reconcile();
+        if(!topologyPending)Reconcile();else ReconcileWake();
         Maintain(now);return 0;
     }
     case WM_QUERYENDSESSION:SetEvent(stopEvent);return TRUE;
@@ -2049,6 +2146,8 @@ DWORD WINAPI UiMain(void*) {
     controller.legacyAutomationBlocked=LegacyStartupPresent();
     if(controller.legacyAutomationBlocked) { controller.config.automatic=false; startupNotice=L"A predecessor controller or old startup entry was detected; automatic activation is withheld. Exit the predecessor and disable the old startup entry before enabling Automatic."; }
     debug=controller.config.debug; RefreshTopology();
+    backgroundWorker=std::make_unique<BackgroundProcessWorker>([](HANDLE process){std::lock_guard lock(registryLock);bool known=true;for(auto& [job,window]:ownedJobs){(void)window;BOOL member=FALSE;if(!IsProcessInJob(process,job,&member))known=false;else if(member)return BackgroundScope::Excluded;}return known?BackgroundScope::Eligible:BackgroundScope::Unknown;});
+    backgroundRequested=nextBackgroundScan=0;
     bool maintenanceOK=false;
     if(ui){try{StartMaintenance();maintenanceOK=true;Maintain(GetTickCount64());}catch(...){maintenanceOK=false;}}
     // Startup precedes input/session activation. Let a quick initial tray result
@@ -2066,13 +2165,17 @@ DWORD WINAPI UiMain(void*) {
 #endif
     SetEvent(readyEvent); MSG msg{};
     if(ready) while(true) { int status=GetMessageW(&msg,nullptr,0,0); if(status<=0) break;
-        dispatchedMessage=msg;HWND dialog=setupWindow?setupWindow:workspace?workspace:options?options:editor;if(!dialog||!IsDialogMessageW(dialog,&msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }dispatchedMessage={};
+        dispatchedMessage=msg;HWND dialog=backgroundEditor&&(msg.hwnd==backgroundEditor||IsChild(backgroundEditor,msg.hwnd))?backgroundEditor:inspector&&(msg.hwnd==inspector||IsChild(inspector,msg.hwnd))?inspector:displayMap&&(msg.hwnd==displayMap||IsChild(displayMap,msg.hwnd))?displayMap:flyout&&(msg.hwnd==flyout||IsChild(flyout,msg.hwnd))?flyout:setupWindow?setupWindow:workspace?workspace:options?options:editor;if(!dialog||!IsDialogMessageW(dialog,&msg)) { TranslateMessage(&msg); DispatchMessageW(&msg); }dispatchedMessage={};
     }
-    BeginShutdownDeadline();SetEvent(stopEvent); StopRuns();StopMaintenance();
+    BeginShutdownDeadline();SetEvent(stopEvent); StopRuns();StopMaintenance();StopDisplayScan();if(backgroundWorker){backgroundWorker->Stop();backgroundWorker.reset();}
     for(auto& task:powerTasks)if(task->worker.joinable())task->worker.join();powerTasks.clear();
     for(auto& r:runs) { if(r->worker.joinable()) r->worker.join(); if(r->window) { {std::lock_guard lock(registryLock);ownedWindows.erase(r->window);} DestroyWindow(r->window); } } runs.clear();
-    if(workspace)DestroyWindow(workspace);if(setupWindow)DestroyWindow(setupWindow);for(auto& item:identifyWindows){{std::lock_guard lock(registryLock);ownedWindows.erase(item.first);}DestroyWindow(item.first);}identifyWindows.clear();identifyLabels.clear();
+    if(backgroundEditor)DestroyWindow(backgroundEditor);if(workspace)DestroyWindow(workspace);if(setupWindow)DestroyWindow(setupWindow);for(auto& item:identifyWindows){{std::lock_guard lock(registryLock);ownedWindows.erase(item.first);}DestroyWindow(item.first);}identifyWindows.clear();identifyLabels.clear();
     if(editor) DestroyWindow(editor);
+    if(flyout)DestroyWindow(flyout);if(flyoutRegistered){UnregisterClassW(kFlyout,wc.hInstance);flyoutRegistered=false;}controller.leases.clear();
+    CloseDisplayMap();if(mapRegistered){UnregisterClassW(kDisplayMap,wc.hInstance);UnregisterClassW(kMapCanvas,wc.hInstance);mapRegistered=false;}
+    if(inspector)DestroyWindow(inspector);if(inspectorRegistered){UnregisterClassW(kInspector,wc.hInstance);inspectorRegistered=false;}
+    if(backgroundEditorRegistered){UnregisterClassW(kBackgroundEditor,wc.hInstance);backgroundEditorRegistered=false;}
     RAWINPUTDEVICE remove[]={{1,2,RIDEV_REMOVE,nullptr},{1,6,RIDEV_REMOVE,nullptr}}; if(inputOK) RegisterRawInputDevices(remove,2,sizeof(remove[0]));
     if(powerNotification) { UnregisterPowerSettingNotification(powerNotification); powerNotification=nullptr; }
     if(ui) { UnregisterHotKey(ui,10);UnregisterHotKey(ui,11);KillTimer(ui,1); WTSUnRegisterSessionNotification(ui); DestroyWindow(ui); ui=nullptr; }
@@ -2098,7 +2201,7 @@ void Shutdown() {
     ready=false;
 }
 bool Initialize() {
-    unloading=false; ready=false; safetyOK=false; startupComplete=false; controller=Controller{};
+    unloading=false; ready=false; safetyOK=false; startupComplete=false; controller=Controller{};displayScanStop=displayScanPending=displayScanReady=displayScanBusy=false;displaySnapshot={};nextCatalogAttempt=0;++configurationEpoch;
     locked=suspended=displayOff=topologyPending=false; lastInputStamp=rawStamp=0; diagnostics=0;
     shutdownRequestedAt=0;heartbeatAt=0;nextPoll=nextTray=0;trayPresent=false;powerStatus.clear();adapters={};consumedControllerInput=0;lastReasons.clear();
 #ifdef DAC_HARNESS

@@ -1,5 +1,17 @@
 # Fujin native integration
 
+The later inspector, display map and background-rule draft editor use this same
+pinned native theme adapter, system high contrast and DPI-scaled controls.
+See [F16/F04/F11](INSPECTOR_MAP_BACKGROUND.md) for source/tests and the remaining
+visible keyboard/screen-reader/mixed-DPI qualification. No runtime or dependency
+upgrade was introduced.
+
+The F02 Display controls panel uses this same pinned native adapter, theme
+roles, focus painting and system high-contrast override. No dependency was
+upgraded. The new isolated fixtures exercise its native rows/controls at 96,
+144 and 192 DPI, including font replacement and draft retention; visible and
+assistive-technology qualification remains in [QUALIFICATION.md](QUALIFICATION.md).
+
 DAC consumes the generated outputs of the **Fujin `v0.1.0` tagged Git checkout** at commit
 `c653620262ef68fa8d58504b6c47bb21aadc5aa5`. The annotated tag object is
 `741af7c946161ff15bc06da07ad8cd233554b8b1`. This is the Fujin package release;

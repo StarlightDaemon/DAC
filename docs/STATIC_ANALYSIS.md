@@ -5,6 +5,13 @@ platform and policy implementation. [VERIFICATION](VERIFICATION.md) records the
 current analyzed source identities, compiler, outcome, and qualification limits.
 Historical analysis results are not carried forward as a fresh pass.
 
+Later development records ([GDI lifetime](GDI_LIFETIME_INVESTIGATION.md),
+[GDI review](GDI_REVIEW.md), [GDI attribution](GDI_ATTRIBUTION.md) and
+[F16/F04/F11](INSPECTOR_MAP_BACKGROUND.md)) each reran the pinned production
+analysis for their source versions with zero findings. The raw evidence
+those development records cite was kept in local development storage and is
+not tracked in this repository. Their results are not publication validation.
+
 This is compilation-time analysis only. It does not execute a DAC process, UI,
 monitor control, hardware helper, or installation.
 

@@ -11,6 +11,7 @@
 #undef GetMessageW
 #include <cstdlib>
 #include <psapi.h>
+#include <imm.h>
 using namespace dac;
 void Check(bool ok,const char* what) { if(!ok) { fprintf(stderr,"FAIL %s error=%lu\n",what,GetLastError()); fflush(stdout);fflush(stderr);std::_Exit(1); } }
 std::wstring Executable() { wchar_t exe[32768]; DWORD n=GetModuleFileNameW(nullptr,exe,32768); Check(n&&n<32768,"exe path"); return std::wstring(exe,n); }
@@ -55,6 +56,11 @@ void OnUi(LRESULT(*action)()) {DWORD_PTR result=0;Check(SendMessageTimeoutW(ui,W
 template<class Predicate> void Until(Predicate predicate,DWORD timeout,const char* what) {
     Time begin=GetTickCount64();do {OnUi(SnapshotSessions);if(predicate())return;Sleep(20);}while(GetTickCount64()-begin<timeout);Check(false,what);
 }
+#include "features-platform.hpp"
+#include "flyout-fixture.hpp"
+#include "display-map-fixture.hpp"
+#include "background-process-fixture.hpp"
+#include "inspector-background-fixture.hpp"
 void Sessions(bool soak) {
     CloseHandle(stopEvent);stopEvent=nullptr;Check(Initialize(),"integration initialize");OnUi(SetupSessions);OnUi(StartSessions);
     Until([]{return snapshot.runs==3&&snapshot.a==State::Saver&&snapshot.b==State::Saver&&snapshot.c==State::Black;},4000,"two saver sessions plus black through controller/reconciler");
@@ -252,7 +258,7 @@ LRESULT NextMigration(){auto savedPath=configPath;configPath=Executable()+L".nex
     std::string original="\xef\xbb\xbf# reordered schema two fixture\ntimeout=17\nversion=2\nautomatic=0\nmonitor.41=0,2\npolicy.41=0,1,-1,0,0,0,0\nassets.41=||30|0|0|0|0\n",read;
     auto marker=PowerMarker("fixture-private-identity");std::string recovery="fixture-private-identity\nPRIVATE-RECOVERY-SECRET\nfault";Check(WriteFileText(marker,recovery,error)&&WriteFileText(configPath,original,error),"isolated schema2/recovery fixtures");Config next;next.monitors["A"].enabled=false;
     Check(WriteFileText(backup,"junk",error)&&!Save(next),"invalid preexisting rollback backup blocks migration");Check(ReadFileText(configPath,read,error,true)&&read==original,"rejected backup preserves exact source including BOM");DeleteFileW(Extended(backup).c_str());
-    Check(Save(next),"first schema2 to schema3 transaction");Check(ReadFileText(backup,read,error,true)&&read==original,"migration backup byte exact");Config parsed;std::string parseError;Check(ReadFileText(configPath,read,error)&&Parse(read,parsed,parseError)&&parsed.sourceSchema==3&&!parsed.monitors["A"].enabled,"forward migration and disabled monitor survive");
+    Check(Save(next),"first schema2 to schema4 transaction");Check(ReadFileText(backup,read,error,true)&&read==original,"migration backup byte exact");Config parsed;std::string parseError;Check(ReadFileText(configPath,read,error)&&Parse(read,parsed,parseError)&&parsed.sourceSchema==5&&!parsed.monitors["A"].enabled,"forward migration and disabled monitor survive");
     auto live=Serialize(controller.config);{Handle held(CreateFileW(Extended(configPath).c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr));Check(held&&!Save(Config{})&&Serialize(controller.config)==live,"failed replacement keeps active preferences");}
     Check(WriteFileText(configPath,"version=999\n",error)&&!Save(next),"future schema ordinary save fails closed");Check(ReadFileText(configPath,read,error)&&read=="version=999\n","future source preserved");Check(Save(Config{},true,true),"explicit reset can preserve and replace unsupported bytes");
     bool resetBackup=false;WIN32_FIND_DATAW item{};HANDLE find=FindFirstFileW(Extended(configPath+L".reset-backup-*").c_str(),&item);if(find!=INVALID_HANDLE_VALUE){auto dir=configPath.substr(0,configPath.find_last_of(L'\\')+1);do{std::string bytes;if(ReadFileText(dir+item.cFileName,bytes,error,true)&&bytes=="version=999\n")resetBackup=true;}while(FindNextFileW(find,&item));FindClose(find);}Check(resetBackup,"reset backup retains exact invalid original");
@@ -404,7 +410,7 @@ LRESULT StartBatterySaver(){SetupSessions();controller.config.monitors["A"].batt
 LRESULT BatteryBlack(){auto& node=controller.nodes["A"];auto began=node.began,oldGeneration=node.generation;auto window=runs[0]->window;controller.powerSource=PowerSource::DC;controller.Tick(GetTickCount64(),{});Reconcile();Check(node.state==State::Black&&node.began==began&&runs[0]->window==window&&runs[0]->presentation==-1&&!IsWindowVisible(runs[0]->preview),"battery replaces expensive content behind same opaque cover without resetting origin");Check(!controller.Result("A",oldGeneration,true)&&powerTasks.empty(),"late result cannot revive retired content or request power");ValidateRect(window,nullptr);for(int i=0;i<10;++i)Reconcile();Check(!GetUpdateRect(window,nullptr,FALSE),"retired battery black stops repaint requests");controller.powerSource=PowerSource::AC;controller.Tick(GetTickCount64(),{});Check(node.state==State::Black&&controller.config.monitors["A"].saver==1,"AC return preserves current black and saved assignment");return 1;}
 LRESULT StartRevocation(){controller.Reset(GetTickCount64());controller.config.monitors["A"].hardware=true;controller.effectiveReady=false;controller.Manual("A",GetTickCount64(),true,-1);fakePowerResult=0;fakePowerWakeResult=0;fakePowerDelay=0;fakePowerOff=fakePowerOn=0;Check(StartPower(displays[0],controller.nodes["A"].generation)==1,"fake off starts under explicit grant");return 1;}
 LRESULT HardwareDiagnostics(){Reconcile();auto text=DiagnosticText();Check(text.find("hardware off accepted")!=std::string::npos&&text.find("hardware wake accepted")!=std::string::npos,"actual fake off/revocation wake outcomes exported");for(int status:{2,3}){auto task=std::make_unique<PowerTask>();task->id="PRIVATE-TICKET-TARGET";task->status=status;task->done=true;powerTasks.push_back(std::move(task));Reconcile();}text=DiagnosticText();Check(text.find("hardware unavailable")!=std::string::npos&&text.find("hardware wake failed")!=std::string::npos&&text.find("PRIVATE-TICKET-TARGET")==std::string::npos,"injected hardware failure outcomes exported without recovery identity");return 1;}
-void NextBeta(){IsolatedRenderScenes();ControllerAdapterTests();CloseHandle(stopEvent);stopEvent=nullptr;Check(Initialize(),"next beta initializes");OnUi(SetupSessions);OnUi(NextMigration);OnUi(NextAdapterConsumer);OnUi(SetupSessions);OnUi(NextUi);OnUi(QuickSetupUi);OnUi(IntegrationUi);OnUi(StaleEditor);OnUi(NextMapping);OnUi(NextDiagnostics);OnUi(StopSessions);Until([]{return snapshot.runs==0;},3000,"next UI cleanup");OnUi(StartDim);OnUi(StartScenes);Until([]{return snapshot.runs==2&&snapshot.a==State::Saver&&snapshot.b==State::Saver;},2000,"two independent native scenes");OnUi(RenderScenesUi);OnUi(StopSessions);Until([]{return snapshot.runs==0;},2000,"scene timers/windows/fonts stop");
+void NextBeta(){IsolatedRenderScenes();ControllerAdapterTests();CloseHandle(stopEvent);stopEvent=nullptr;Check(Initialize(),"next beta initializes");OnUi(SetupSessions);puts("NEXT stage NextMigration" );fflush(stdout);OnUi(NextMigration);puts("NEXT stage NextAdapterConsumer" );fflush(stdout);OnUi(NextAdapterConsumer);OnUi(SetupSessions);puts("NEXT stage NextUi" );fflush(stdout);OnUi(NextUi);puts("NEXT stage QuickSetupUi" );fflush(stdout);OnUi(QuickSetupUi);puts("NEXT stage IntegrationUi" );fflush(stdout);OnUi(IntegrationUi);puts("NEXT stage StaleEditor" );fflush(stdout);OnUi(StaleEditor);puts("NEXT stage NextMapping" );fflush(stdout);OnUi(NextMapping);puts("NEXT stage NextDiagnostics" );fflush(stdout);OnUi(NextDiagnostics);OnUi(StopSessions);Until([]{return snapshot.runs==0;},3000,"next UI cleanup");OnUi(StartDim);OnUi(StartScenes);Until([]{return snapshot.runs==2&&snapshot.a==State::Saver&&snapshot.b==State::Saver;},2000,"two independent native scenes");OnUi(RenderScenesUi);OnUi(StopSessions);Until([]{return snapshot.runs==0;},2000,"scene timers/windows/fonts stop");
     OnUi(StartPreviewFixture);Until([]{return snapshot.runs==1&&snapshot.jobs==0;},3000,"preview closed during launch cleans only preview");Check(snapshot.c==State::Black,"unrelated production black survives preview close");OnUi(StartHungPreview);Until([]{return snapshot.runs==2&&snapshot.jobs==1;},2000,"hung preview initially launches contained job");Until([]{return snapshot.runs==2&&snapshot.jobs==0;},6500,"hung preview job health cleanup");OnUi(VerifyPreviewFallback);OnUi(ClosePreview);Until([]{return snapshot.runs==1;},2000,"hung preview close");OnUi(PreviewPhotoAndExpiry);Until([]{return snapshot.runs==1;},2500,"invalid photo/preview maximum duration cleanup");OnUi(StopSessions);Until([]{return snapshot.runs==0;},2000,"pre-battery cleanup");
     OnUi(StartBatterySaver);Until([]{return snapshot.a==State::Saver;},2500,"battery fixture saver ready");OnUi(BatteryBlack);Until([]{return snapshot.jobs==0;},3000,"battery retires child behind black");OnUi(StopSessions);Until([]{return snapshot.runs==0;},2000,"battery stop");OnUi(StartRevocation);Until([]{return snapshot.powerPhase==1;},2000,"fake off accepted and reported on UI owner");Check(fakePowerOff==1,"fake off observed");OnUi(+[]()->LRESULT{SendMessageW(ui,WM_TIMER,1,0);Check(!controller.hardwareFaults.contains("A"),"healthy owned power ticket is not fault quarantine");controller.config.monitors["A"].hardware=false;Reconcile();return 1;});Until([]{return snapshot.powers==0;},3000,"terminal power outcome observed before task drain");Check(fakePowerOn==1,"grant revocation requests fake recovery wake");OnUi(HardwareDiagnostics);
     OnUi(StopSessions);Until([]{return snapshot.runs==0;},3000,"next beta final sessions stop");Shutdown();injectedObservations=false;Check(runs.empty()&&powerTasks.empty()&&ownedWindows.empty()&&ownedJobs.empty()&&!workspace&&!setupWindow,"next beta all owners released");puts("NEXTBETA PASS: production policy/native UI, schema2 migration and byte-exact rollback, recovery retention, rules/profiles/mapping, hidden DPI/topology, dim/scenes/preview, XInput injection, battery and fake permission-revocation wake, bounded redacted diagnostics. No real off/lock/OS-setting mutation.");}
@@ -483,8 +489,27 @@ LRESULT NativeRawTests(){
 }
 LRESULT PreparePostedRaw(){NativeSetup();wake_fixture::packet={};wake_fixture::packet.header.dwType=RIM_TYPEMOUSE;wake_fixture::packet.data.mouse.lLastX=1;wake_fixture::message=NativeMessage(GetTickCount64(),300);wake_fixture::message.pt={50000,-50000};displays[0].rect={49000,-51000,51000,-49000};wake_fixture::enabled=true;wake_fixture::overrideQueue=true;injectedObservations=false;return 1;}
 LRESULT VerifyPostedRaw(){injectedObservations=true;wake_fixture::enabled=false;wake_fixture::overrideQueue=false;VerifyNativeWake();return 1;}
-void WaitMaintenance(bool tray=false){Time deadline=GetTickCount64()+4000;while(GetTickCount64()<deadline){bool busy=tray?maintenanceInTray.load():maintenanceInFile.load();if(busy)return;Sleep(1);}Check(false,"maintenance worker entered injected stall");}
+void WaitMaintenance(bool tray=false){
+    Time deadline=GetTickCount64()+4000;
+    while(GetTickCount64()<deadline){
+        bool busy=tray?maintenanceInTray.load():maintenanceInFile.load();if(busy)return;
+        // NativeWake disables the normal UI timer. A completed result blocks
+        // the next worker request until the UI owner consumes it; polling the
+        // worker alone cannot make progress through that bounded mailbox.
+        OnUi(+[]()->LRESULT{Maintain(GetTickCount64());return 1;});Sleep(1);
+    }
+    Check(false,"maintenance worker entered injected stall");
+}
 LRESULT NativeMaintain(){Maintain(GetTickCount64());return 1;}
+void NativeMaintenanceBackpressure(){
+    OnUi(+[]()->LRESULT{Tray();return 1;});
+    static bool readyResult=false;const auto deadline=GetTickCount64()+2000;
+    do{OnUi(+[]()->LRESULT{std::lock_guard lock(maintenanceLock);readyResult=maintenanceResultReady;return 1;});if(readyResult)break;Sleep(1);}while(GetTickCount64()<deadline);
+    Check(readyResult,"real worker publishes a result while normal timer is disabled");
+    OnUi(+[]()->LRESULT{maintenanceTrayDelay=750;Tray();std::lock_guard lock(maintenanceLock);Check(maintenanceResultReady&&maintenancePending.tray,"next tray request waits behind unconsumed result");return 1;});
+    WaitMaintenance(true);maintenanceTrayDelay=0;
+    printf("NATIVEWAKE mailbox PASS: UI-owner result consumption admits queued worker request within original four-second wait\n");fflush(stdout);
+}
 LRESULT NativeResourceInput(){
     NativeSetup();auto now=GetTickCount64();auto message=NativeMessage(now,0);DWORD before=0,after=0;GetProcessHandleCount(GetCurrentProcess(),&before);auto gdi=GetGuiResources(GetCurrentProcess(),GR_GDIOBJECTS);auto count=diagnosticEvents.size();
     for(int i=0;i<50000;++i)NativeDeliver(message,now);
@@ -632,6 +657,7 @@ void NativeCoverageMatrix(){
 
 void NativeWake(){
     CloseHandle(stopEvent);stopEvent=nullptr;Check(Initialize(),"native wake initialize");OnUi(+[]()->LRESULT{KillTimer(ui,1);injectedObservations=true;locked=suspended=displayOff=false;return 1;});
+    NativeMaintenanceBackpressure();
     Time maximum=0;int samples=0;
     for(int style:{-1,8,9})for(int count:{1,2,3})for(int target=0;target<count;++target)for(DWORD delay:{0u,300u,1500u,5000u}){wakeStyle=style;wakeScreens=count;wakeTarget=target;wakeAge=delay;OnUi(NativeSample);maximum=std::max(maximum,measuredHandler);++samples;}
     printf("NATIVEWAKE matrix: %d hidden samples black/clock/constellation, 1/2/3 displays, every target, 0/300/1500/5000 ms queue age; handler max=%llu us; visible rendering unmeasured\n",samples,maximum);
@@ -746,6 +772,15 @@ int wmain(int argc,wchar_t** argv) {
     if(argc>1&&wcscmp(argv[1],L"--idleperf")==0){IdlePerformance();return 0;}
     if(argc>1&&wcscmp(argv[1],L"--wakeperf")==0){WakePerformance();return 0;}
     if(argc>1&&wcscmp(argv[1],L"--nativewake")==0){NativeWake();return 0;}
+    // A separate process-local control isolates DAC allocation/deletion from
+    // asynchronous native IME/TSF initialization. Normal --features keeps IME.
+    if(argc>1&&wcscmp(argv[1],L"--flyout-resource-control")==0){
+        Check(ImmDisableIME(DWORD(-1))!=FALSE,"resource control disables IME only in fixture process");
+        CloseHandle(stopEvent);stopEvent=nullptr;Check(Initialize(),"flyout resource control initialize");
+        OnUi(SetupSessions);FeatureFlyoutDeferredResourceControl();FeatureFlyoutResources(true);Shutdown();return 0;
+    }
+    if(argc>1&&wcscmp(argv[1],L"--features")==0){CloseHandle(stopEvent);stopEvent=nullptr;Check(Initialize(),"features initialize");FeaturePlatform();FeatureFlyout();Shutdown();return 0;}
+    if(argc>1&&wcscmp(argv[1],L"--inspector-map-background")==0){CloseHandle(stopEvent);stopEvent=nullptr;Check(Initialize(),"inspector/map/background initialize");InspectorBackgroundPlatform();Shutdown();return 0;}
     if(argc>1&&wcscmp(argv[1],L"--nextbeta")==0){NextBeta();return 0;}
     if(argc>1&&wcscmp(argv[1],L"--advanced")==0){Advanced();return 0;}
     if(argc>1&&wcscmp(argv[1],L"--power")==0){PowerTests();CloseHandle(stopEvent);return 0;}

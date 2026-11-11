@@ -1,5 +1,13 @@
 # Standalone feature parity and qualification
 
+The later [F16/F04/F11 implementation record](INSPECTOR_MAP_BACKGROUND.md)
+supersedes the feature-batch counts below for current verification. F16 delivers
+cached inspector/OS-only rescan/redacted report; live DDC probing is deferred.
+F04 delivers native desktop-pixel map/list selection and guarded navigation.
+F11 delivers persistent explicit-scope running-application rules and bounded
+user/session observation. Visible accessibility, actual session/topology/mixed-DPI
+and physical display qualification remain pending. F01 remains on hold.
+
 This matrix accounts for the original standalone assignment and the verified
 DAC/R01C functionality selected in [SOURCE_INVENTORY.md](SOURCE_INVENTORY.md).
 It describes the current source and available test coverage. Execution results
@@ -13,6 +21,21 @@ Test names below identify the fixtures that exercise a feature within the stated
 scope. They do not imply a current pass or that every associated visible or
 physical behavior was exercised. Historical Windhawk/R01C results do not qualify
 this executable.
+
+**Development addition (2026-10-16):** F03 friendly names, F05 per-display
+temporary keep-awake and F02 native Display controls are integrated and
+recorded in [FEATURE_IMPLEMENTATION.md](FEATURE_IMPLEMENTATION.md). The later
+F16 inspector, F04 display map and F11 running-application rules are recorded
+in [INSPECTOR_MAP_BACKGROUND.md](INSPECTOR_MAP_BACKGROUND.md). The raw evidence
+those development records cite was kept in local development storage and is
+not tracked in this repository. Their results are not publication validation.
+F01 remains on hold. Visible/physical qualification is still outstanding.
+
+| Feature | Implementation status | Verification boundary |
+|---|---|---|
+| F03 friendly names | Implemented | Schema 4 global stable-ID metadata; transactional Advanced settings edit, shared label formatting, duplicates/Unicode, disconnected retention, migration/import disarming and redaction. `policy`, `features`; visible text/screen-reader qualification pending. |
+| F05 temporary keep-awake | Implemented | Runtime per-display replacement/cancel/expiry; 5/15/30/60/custom/until controls, monotonic suspend-inclusive deadlines, explicit DST rejection, targeted cancellation and unchanged peers. `policy`, `features`; real session/suspend behavior pending. Does not prevent Windows sleep. |
+| F02 Display controls | Implemented | Native list plus selected-display controls, stable selection/epoch guards, corresponding draft-preserving settings route, Fujin themes/high contrast, scrolling and DPI relayout. `features`; hidden fixtures do not qualify visible accessibility/mixed-DPI use. |
 
 All physical display, real multi-monitor input, visible desktop, and DDC/CI
 qualification remains **untested**. Hidden/private-desktop observations do not
@@ -37,7 +60,7 @@ Status meanings:
 | One controller per user/session | Implemented | User SID/session object scope and authoritative named-mutex creation. `host-preferences`, `lifecycle`, `standalone-lifecycle`; the shipping executable's second-instance no-op and scoped stop are exercised on a private desktop. Real sign-in behavior remains untested. |
 | Reliable ownership and cleanup | Implemented | UI-owned windows, worker-owned children/jobs, retained process handles, COM/GDI/input teardown. `containment`, `host-death`, `sessions`, `session-soak`, `lifecycle`. |
 | Independent system-tray icon/menu | Implemented | Native generated DAC icon, grouped menus, explicit start/stop/exit, status and notices. `advanced`, `nextbeta`, `standalone-host`; real Explorer behavior untested. |
-| Configurable primary tray click | Implemented | Start/stop, Quick Setup, or Advanced Settings; native `.host` preferences. `nextbeta`, `host-preferences`. |
+| Configurable primary tray click | Implemented | Start/stop, Quick Setup, Advanced Settings or Display controls; native `.host` preferences. `policy`, `features`, `nextbeta`, `host-preferences`. |
 | Emergency stop and ordinary exit | Implemented | Ctrl+Alt+Shift+F12, tray Exit, same-user/session `DAC.exe --stop`; cancellation and owned-job termination. `emergency`, `lifecycle`, `standalone-lifecycle`. The shipping executable's scoped stop is exercised privately; the emergency shortcut is simulated in harness tests. |
 | Optional ordinary control hotkeys | Implemented | Per-monitor/current/all controls, configurable function-key assignments, conflict reporting. `advanced`, `nextbeta`; actual desktop hotkey registration untested. |
 | Optional run at login | Implemented | Explicit HKCU Run registration, exact executable/profile command, foreign-value protection. `host-preferences` substitutes the registry; live registration and sign-in are untested and were not authorized. |

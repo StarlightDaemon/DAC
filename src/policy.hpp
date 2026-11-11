@@ -20,6 +20,7 @@
 #include <deque>
 #include <condition_variable>
 #include <chrono>
+#include <functional>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -39,7 +40,7 @@ bool ParseIntegration(const std::string& text,IntegrationSettings& output) {
         auto key=line.substr(0,split),value=line.substr(split+1);if(!keys.insert(key).second||value.size()!=1)return false;
         if(key=="version"){if(value!="1")return false;}
         else if(key=="startupSetup"){if(value!="0"&&value!="1")return false;next.startupSetup=value=="1";}
-        else if(key=="trayAction"){if(value<"0"||value>"2")return false;next.trayAction=value[0]-'0';}
+        else if(key=="trayAction"){if(value<"0"||value>"3")return false;next.trayAction=value[0]-'0';}
         else if(key=="appearance"){if(value<"0"||value>"2")return false;next.appearance=value[0]-'0';}
         else return false;
     }
@@ -58,7 +59,8 @@ std::string Canonical(std::string s) {
     return s;
 }
 struct AppIdentity {std::string path,name;bool known=false;};
-struct AppRule {int kind=0;bool global=false,nameOnly=false;std::string executable;};
+// Kinds are deliberately numeric for migration: 0 foreground, 1 audio, 2 running.
+struct AppRule {int kind=0;bool global=false,nameOnly=false;std::string executable;bool enabled=true;std::set<std::string> targets;};
 std::string Lower(std::string s) {for(auto& ch:s)if(ch>='A'&&ch<='Z')ch+=32;return s;}
 bool ExecutableEqual(const std::string& first,const std::string& second) {
 #ifdef _WIN32
@@ -73,6 +75,7 @@ bool MatchApp(const AppIdentity& app,const std::string& pattern,bool nameOnly) {
     return app.known&&!pattern.empty()&&ExecutableEqual(nameOnly?app.name:app.path,pattern);
 }
 bool RuleMatch(const AppRule& rule,const AppIdentity& app) {return MatchApp(app,rule.executable,rule.nameOnly);}
+#include "background-policy.hpp"
 struct Policy {
     int timeout=60, poll=1000, padding=0;
     bool automatic=false, perInput=true, media=true, perMedia=true, muted=false, debug=false;
@@ -82,7 +85,8 @@ struct Policy {
     std::map<std::string,Preference> monitors;
 };
 struct Profile {std::string name,app;int trigger=0,start=0,end=0;bool nameOnly=false;Policy policy;};
-struct Config : Policy {int sourceSchema=3;std::string manualProfile;std::vector<Profile> profiles;};
+// Device labels are global metadata, deliberately outside profile policy/authority.
+struct Config : Policy {int sourceSchema=5;std::string manualProfile;std::vector<Profile> profiles;std::map<std::string,std::string> nicknames;};
 void DisarmImportedConfig(Config& config) {
     config.automatic=false;
     for(auto& [id,p]:config.monitors){(void)id;p.hardware=false;p.powerAfter=0;}
@@ -129,14 +133,25 @@ bool Unhex(const std::string& s,std::string& out,size_t limit=8192) {
     auto digit=[](char c) { return c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:-1; };
     for(size_t i=0;i<s.size();i+=2) { int a=digit(s[i]),b=digit(s[i+1]); if(a<0||b<0||!(a*16+b)) return false; out+=char(a*16+b); } return ValidUtf8(out);
 }
+bool ValidNickname(const std::string& s) {
+    if(s.size()>256||!ValidUtf8(s))return false;
+    size_t count=0;
+    for(size_t i=0;i<s.size();) {
+        unsigned char c=s[i++];uint32_t value=c;unsigned n=0;
+        if(c>=0x80){n=c<0xe0?1:c<0xf0?2:3;value=c&((1u<<(6-n))-1);for(unsigned j=0;j<n;++j)value=(value<<6)|(static_cast<unsigned char>(s[i++])&63);}
+        if(++count>64||value<32||(value>=127&&value<=159)||value==0x2028||value==0x2029||(value>=0x202a&&value<=0x202e)||(value>=0x2066&&value<=0x2069))return false;
+    }return true;
+}
 std::string Serialize(Config c) {
     Validate(c); std::ostringstream o;
-    o<<"version=3\ntimeout="<<c.timeout<<"\npoll="<<c.poll<<"\npadding="<<c.padding
+    o<<"version=5\ntimeout="<<c.timeout<<"\npoll="<<c.poll<<"\npadding="<<c.padding
      <<"\nautomatic="<<c.automatic<<"\nperInput="<<c.perInput<<"\nmedia="<<c.media
      <<"\nperMedia="<<c.perMedia<<"\nmuted="<<c.muted<<"\ndebug="<<c.debug<<'\n'
      <<"hotkeys="<<c.hotkeys<<"\ncurrentKey="<<c.currentKey<<"\nallKey="<<c.allKey<<'\n';
     o<<"controllerInput="<<c.controllerInput<<'\n'<<"manualProfile="<<Hex(c.manualProfile)<<'\n';
-    for(size_t i=0;i<c.rules.size();++i){auto& r=c.rules[i];o<<"rule."<<i<<'='<<r.kind<<'|'<<r.global<<'|'<<r.nameOnly<<'|'<<Hex(r.executable)<<'\n';}
+    for(auto& [id,name]:c.nicknames)o<<"nickname."<<Hex(id)<<'='<<Hex(name)<<'\n';
+    for(size_t i=0;i<c.rules.size();++i){auto& r=c.rules[i];o<<"rule."<<i<<'='<<r.kind<<'|'<<r.global<<'|'<<r.nameOnly<<'|'<<Hex(r.executable)<<'|'<<r.enabled<<'|';
+        if(r.targets.empty())o<<'-';else {bool first=true;for(auto& id:r.targets){if(!first)o<<',';first=false;o<<Hex(id);}}o<<'\n';}
     for(auto& profile:c.profiles){Config body;static_cast<Policy&>(body)=profile.policy;
         o<<"profile."<<Hex(profile.name)<<'='<<profile.trigger<<'|'<<profile.start<<'|'<<profile.end<<'|'<<profile.nameOnly<<'|'<<Hex(profile.app)<<'|'<<Hex(Serialize(body))<<'\n';}
     for(auto& [id,p]:c.monitors) {
@@ -149,19 +164,29 @@ std::string Serialize(Config c) {
 }
 bool Parse(const std::string& text,Config& result,std::string& error,int depth=0) {
     if(text.size()>262144) { error="Configuration exceeds 256 KiB"; return false; }
-    Config c; bool version=false,modern=false; std::set<std::string> keys; std::istringstream in(text); std::string line;
+    Config c; bool version=false,modern=false,names=false,runningRules=false; std::set<std::string> keys; std::istringstream in(text); std::string line;
     while(std::getline(in,line)) {
         line=Trim(line); if(line.empty()||line[0]=='#') continue;
         auto eq=line.find('='); if(eq==std::string::npos) { error="Expected key=value"; return false; }
         auto k=Trim(line.substr(0,eq)),v=Trim(line.substr(eq+1)); int n=0;
         if(!keys.insert(k).second) { error="Duplicate key"; return false; }
+        if(k.starts_with("nickname.")) {
+            std::string id,name;names=true;
+            if(depth||!Unhex(k.substr(9),id)||(!v.empty()&&!Unhex(v,name,512))||!ValidNickname(name)){error="Invalid display nickname";return false;}
+            id=Canonical(id);if(!keys.insert("canonical-nickname:"+id).second){error="Duplicate nickname identity";return false;}
+            if(!name.empty())c.nicknames[id]=name;continue;
+        }
         if(k=="manualProfile"){modern=true;if(!v.empty()&&!Unhex(v,c.manualProfile)){error="Invalid selected profile";return false;}continue;}
         if(k.starts_with("rule.")||k.starts_with("profile.")) {
             if(v.ends_with('|')){error="Trailing rule/profile separator";return false;}
             modern=true;std::istringstream fields(v);std::string field;std::vector<std::string> values;while(std::getline(fields,field,'|'))values.push_back(field);
             if(k.starts_with("rule.")){AppRule r;int kind=0,global=0,nameOnly=0,index=0;
-                if(c.rules.size()>=32||values.size()!=4||!Number(k.substr(5),index)||index!=static_cast<int>(c.rules.size())||!Number(values[0],kind)||!Number(values[1],global)||!Number(values[2],nameOnly)||kind<0||kind>1||global<0||global>1||nameOnly<0||nameOnly>1||!Unhex(values[3],r.executable)){error="Invalid application rule";return false;}
-                r.kind=kind;r.global=global;r.nameOnly=nameOnly;if((!r.nameOnly&&(r.executable.size()<3||r.executable[1]!=':'||r.executable[2]!='\\'))||(r.nameOnly&&r.executable.find_first_of("/\\")!=std::string::npos)){error="Rule requires a full drive path or explicit name-only match";return false;}c.rules.push_back(r);
+                if(c.rules.size()>=32||(values.size()!=4&&values.size()!=6)||!Number(k.substr(5),index)||index!=static_cast<int>(c.rules.size())||!Number(values[0],kind)||!Number(values[1],global)||!Number(values[2],nameOnly)||kind<0||kind>2||global<0||global>1||nameOnly<0||nameOnly>1||!Unhex(values[3],r.executable)){error="Invalid application rule";return false;}
+                if(values.size()==6){runningRules=true;int enabled=0;if(!Number(values[4],enabled)||enabled<0||enabled>1){error="Invalid rule enablement";return false;}r.enabled=enabled!=0;
+                    if(values[5]!="-"){std::istringstream ids(values[5]);std::string hex,id;if(values[5].empty()||values[5].back()==','){error="Empty rule targets";return false;}
+                        while(std::getline(ids,hex,',')){if(r.targets.size()>=64||!Unhex(hex,id)||id=="@span"||id.starts_with("unidentified:")||!r.targets.insert(Canonical(id)).second){error="Invalid rule targets";return false;}}}}
+                if((kind==2&&(values.size()!=6||(global?!r.targets.empty():r.targets.empty())))||(kind!=2&&!r.targets.empty())){error="Running rules require explicit global or stable display targets";return false;}
+                r.kind=kind;r.global=global;r.nameOnly=nameOnly;if((!r.nameOnly&&(r.executable.size()<3||r.executable[1]!=':'||r.executable[2]!='\\'||r.executable.find_first_of("/\r\n\t|*?",3)!=std::string::npos||r.executable.find(':',2)!=std::string::npos))||(r.nameOnly&&r.executable.find_first_of("/\\:\r\n\t|*?")!=std::string::npos)){error="Rule requires a full drive path or explicit name-only match";return false;}c.rules.push_back(r);
             }else{Profile profile;int nameOnly=0;std::string body;Config parsed;
                 if(depth||c.profiles.size()>=8||values.size()!=6||!Unhex(k.substr(8),profile.name)||profile.name.size()>128||!Number(values[0],profile.trigger)||profile.trigger<0||profile.trigger>2||!Number(values[1],profile.start)||!Number(values[2],profile.end)||profile.start<0||profile.start>=1440||profile.end<0||profile.end>=1440||!Number(values[3],nameOnly)||nameOnly<0||nameOnly>1||(!values[4].empty()&&!Unhex(values[4],profile.app))||!Unhex(values[5],body,524288)||!Parse(body,parsed,error,depth+1)){error="Invalid profile";return false;}
                 profile.nameOnly=nameOnly;if(profile.trigger==2&&(profile.app.empty()||(profile.nameOnly?profile.app.find_first_of("/\\:")!=std::string::npos:profile.app.size()<3||profile.app[1]!=':'||profile.app[2]!='\\'))){error="App profile needs an executable";return false;}profile.policy=parsed;c.profiles.push_back(std::move(profile));
@@ -198,7 +223,7 @@ bool Parse(const std::string& text,Config& result,std::string& error,int depth=0
             c.monitors[id].enabled=en!=0;c.monitors[id].saver=saver; continue;
         }
         if(!Number(v,n)) { error="Expected integer"; return false; }
-        if(k=="version") { if(n<1||n>3) { error="Unsupported version"; return false; } version=true;c.sourceSchema=n; }
+        if(k=="version") { if(n<1||n>5) { error="Unsupported version"; return false; } version=true;c.sourceSchema=n; }
         else if(k=="timeout") c.timeout=n; else if(k=="poll") c.poll=n; else if(k=="padding") c.padding=n;
         else if(k=="currentKey")c.currentKey=n;else if(k=="allKey")c.allKey=n;
         else {
@@ -211,6 +236,8 @@ bool Parse(const std::string& text,Config& result,std::string& error,int depth=0
         }
     }
     if(!version) { error="Missing version"; return false; }
+    if(runningRules&&c.sourceSchema<5){error="Extended rules require schema 5";return false;}
+    if((names&&c.sourceSchema<4)||c.nicknames.size()>64){error="Nicknames require schema 4 and at most 64 devices";return false;}
     if(c.sourceSchema<3){if(modern){error="New fields require schema 3";return false;}for(auto& [id,p]:c.monitors){(void)id;if(p.input>1||p.saver>7){error="Invalid legacy mode";return false;}}}
     if(c.monitors.size()>64){error="Too many display preferences";return false;}
     if(!c.manualProfile.empty()&&std::none_of(c.profiles.begin(),c.profiles.end(),[&](const Profile& p){return p.name==c.manualProfile;})){error="Selected profile missing";return false;}
@@ -240,7 +267,7 @@ InputObservation AttributeInput(bool keyboard,const std::string& cursor,const st
 struct Media { Time at=0; bool valid=false,any=false,ambiguous=false; std::set<std::string> monitors; };
 void AddAudioContribution(Media& media,const Policy& policy,const AppIdentity& identity,bool ambiguous,const std::set<std::string>& ids,bool owned=false) {
     if(owned)return;
-    if(!ambiguous&&identity.known)for(auto& rule:policy.rules)if(rule.kind==1&&RuleMatch(rule,identity)&&(rule.global||!ids.empty()))return;
+    if(!ambiguous&&identity.known)for(auto& rule:policy.rules)if(rule.enabled&&rule.kind==1&&RuleMatch(rule,identity)&&(rule.global||!ids.empty()))return;
     media.any=true;media.monitors.insert(ids.begin(),ids.end());media.ambiguous=media.ambiguous||ambiguous||ids.empty()||!identity.known;
 }
 bool AudioBlocks(bool active,bool includeMuted,bool sessionMute,bool endpointMute,float peak,float volume,float endpointVolume) {
@@ -278,8 +305,8 @@ struct PowerDeadline {
         return recovering&&now>=cancellation&&now-cancellation>=5000?2:0;
     }
 };
-enum class Reason { Disabled,Session,Paused,Snoozed,ManualOnly,App,Fullscreen,Stale,Media,Idle,Dim,Manual,Sticky,Presentation,Fallback,HardwareFault };
-enum class DeadlineKind { None,Activation,Presentation,Black,Hardware };
+enum class Reason { Disabled,Session,Paused,Snoozed,ManualOnly,App,Fullscreen,Stale,Media,Idle,Dim,Manual,Sticky,Presentation,Fallback,HardwareFault,KeepAwake,Background };
+enum class DeadlineKind { None,Activation,Presentation,Black,Hardware,KeepAwake };
 struct Explanation {Reason primary=Reason::Idle;uint32_t flags=0;DeadlineKind kind=DeadlineKind::None;Time remaining=0;};
 enum class PowerSource {Unknown,AC,DC};
 PowerSource PowerFromStatus(bool valid,unsigned status){return !valid?PowerSource::Unknown:status==0?PowerSource::DC:status==1?PowerSource::AC:PowerSource::Unknown;}
@@ -304,6 +331,9 @@ Policy EffectivePolicy(const Config& c,const std::string& profile) {
     return result;
 }
 std::string PolicyIdentity(const Policy& policy){Config c;static_cast<Policy&>(c)=policy;return Serialize(c);}
+void RemoveBackgroundRules(Policy& policy){policy.rules.erase(std::remove_if(policy.rules.begin(),policy.rules.end(),[](const AppRule& r){return r.kind==2;}),policy.rules.end());}
+std::string PolicyWithoutRules(Policy policy){RemoveBackgroundRules(policy);return PolicyIdentity(policy);}
+bool RulesOnlyChange(Config before,Config after){before.nicknames.clear();after.nicknames.clear();RemoveBackgroundRules(before);RemoveBackgroundRules(after);for(auto& p:before.profiles)RemoveBackgroundRules(p.policy);for(auto& p:after.profiles)RemoveBackgroundRules(p.policy);return Serialize(before)==Serialize(after);}
 bool ControllerActive(unsigned buttons,int lx,int ly,int rx,int ry,unsigned lt,unsigned rt) {
     return (buttons&0xf3ff)||int64_t(lx)*lx+int64_t(ly)*ly>int64_t(7849)*7849||int64_t(rx)*rx+int64_t(ry)*ry>int64_t(8689)*8689||lt>30||rt>30;
 }
@@ -312,16 +342,59 @@ unsigned DimAlpha(int percent,int fade,Time elapsed){return static_cast<unsigned
 #define DAC_WAKE_OBSERVABILITY 1
 void SaturatingAdd(Time& value,Time amount=1){value=amount>UINT64_MAX-value?UINT64_MAX:value+amount;}
 struct InputDiagnostics {Time desktopAccepted=0,activeAccepted=0,activeToDesktop=0;};
+struct AwakeLease {Time deadline=0;std::string resolvedExpiry;};
 struct Controller {
     InputDiagnostics inputDiagnostics;
     Config config; std::map<std::string,Node> nodes; Time serial=0,inputBoundary=0; bool paused=false,blocked=false;
     Preference spanPreference;std::set<std::string> fullscreen,hardwareFaults,unidentified;bool legacyAutomationBlocked=false;
     Foreground foreground;PowerSource powerSource=PowerSource::Unknown;Time snoozeUntil=0;bool activityStale=false;
     std::string activeProfile,candidateProfile,effectiveIdentity,selectedManualProfile;Time candidateSince=0;
-    Policy effective;bool effectiveReady=false;
+    Policy effective;bool effectiveReady=false,backgroundOnlyPolicyChange=false;
     std::map<std::string,Explanation> explanations;std::map<std::string,Preference> manualPreferences;
+    std::map<std::string,AwakeLease> leases;
+    BackgroundTracker background;Time backgroundEpoch=1;
+    std::set<std::string> backgroundTargets;
+    void InvalidateBackground(){background.Reset(++backgroundEpoch,PolicyNow().rules.size());}
+    bool BackgroundActive(const std::string& id,Time now)const {
+        auto& rules=PolicyNow().rules;
+        for(size_t i=0;i<rules.size();++i){auto& r=rules[i];if(r.enabled&&r.kind==2&&(r.global||r.targets.contains(id))&&background.Active(i,now))return true;}return false;
+    }
+    void ReconcileBackground(Time now) {
+        std::set<std::string> next;
+        for(auto& [id,n]:nodes){(void)n;if(id!="@span"&&BackgroundActive(id,now))next.insert(id);}
+        for(auto& [id,n]:nodes)if(backgroundTargets.contains(id)!=next.contains(id)&&!n.manual&&Pref(id).enabled&&id!="@span"&&!Spanning())n={now,++serial,State::Desktop,false};
+        backgroundTargets=std::move(next);
+    }
+    bool Spanning()const {auto it=nodes.find("@span");return it!=nodes.end()&&Running(it->second.state);}
+    std::string LeaseRejection(const std::string& id)const {
+        if(Spanning())return "Stop the spanning presentation first";
+        auto it=nodes.find(id);if(id=="@span"||it==nodes.end()||unidentified.contains(id))return "Display identity unavailable or disconnected";
+        if(!Pref(id).enabled)return "Display is disabled";
+        if(it->second.manual&&Running(it->second.state))return "Stop the manual or sticky presentation first";
+        return {};
+    }
+    bool KeepAwakeUntil(const std::string& id,Time now,Time deadline,std::string expiry) {
+        if(!LeaseRejection(id).empty()||deadline<=now||deadline-now>86400000||expiry.size()>128)return false;
+        if(!leases.contains(id)&&leases.size()>=64)return false;
+        leases[id]={deadline,std::move(expiry)};auto& n=nodes.at(id);
+        n={now,++serial,State::Desktop,false};manualPreferences.erase(id);return true;
+    }
+    bool KeepAwake(const std::string& id,Time now,int minutes,std::string expiry={}) {
+        if(minutes<1||minutes>1440||now>UINT64_MAX-static_cast<Time>(minutes)*60000)return false;
+        return KeepAwakeUntil(id,now,now+static_cast<Time>(minutes)*60000,std::move(expiry));
+    }
+    bool CancelKeepAwake(const std::string& id,Time now) {
+        if(!leases.erase(id))return false;
+        auto it=nodes.find(id);if(it!=nodes.end()&&!it->second.manual&&Pref(id).enabled)it->second={now,++serial,State::Desktop,false};return true;
+    }
+    void PruneLeases(Time now) {
+        for(auto it=leases.begin();it!=leases.end();) {
+            auto id=it->first;
+            if(!nodes.contains(id)||!Pref(id).enabled||unidentified.contains(id)||now>=it->second.deadline){++it;CancelKeepAwake(id,now);}else ++it;
+        }
+    }
     const Policy& PolicyNow()const{return effectiveReady?effective:static_cast<const Policy&>(config);}
-    void Topology(const std::vector<std::string>& ids,Time now) {inputBoundary=now;nodes.clear();manualPreferences.clear();for(auto& id:ids)nodes[id]={now,++serial,State::Desktop,false};}
+    void Topology(const std::vector<std::string>& ids,Time now) {inputBoundary=now;nodes.clear();manualPreferences.clear();for(auto& id:ids)nodes[id]={now,++serial,State::Desktop,false};PruneLeases(now);}
     Preference Pref(const std::string& id) const {
         if(id=="@span")return spanPreference;
         if(auto n=nodes.find(id);n!=nodes.end()&&n->second.manual&&Running(n->second.state)){auto m=manualPreferences.find(id);if(m!=manualPreferences.end()){auto p=m->second;auto base=config.monitors.find(id);p.hardware=p.hardware&&base!=config.monitors.end()&&base->second.hardware;if((base!=config.monitors.end()&&!base->second.enabled)||unidentified.contains(id))p.enabled=false;return p;}}
@@ -334,10 +407,16 @@ struct Controller {
         bool immediate=!effectiveReady||!config.manualProfile.empty()||manualChanged;
         if(!immediate&&(now<candidateSince||now-candidateSince<1000))return false;
         auto next=EffectivePolicy(config,wanted);if(legacyAutomationBlocked)next.automatic=false;auto identity=PolicyIdentity(next);
-        if(effectiveReady&&identity==effectiveIdentity){activeProfile=wanted;return false;}
+        if(effectiveReady&&identity==effectiveIdentity){bool profileChanged=activeProfile!=wanted;activeProfile=wanted;if(profileChanged)InvalidateBackground();return false;}
+        bool rulesOnly=effectiveReady&&activeProfile==wanted&&PolicyWithoutRules(effective)==PolicyWithoutRules(next);
+        backgroundOnlyPolicyChange=rulesOnly;
+        auto previousRules=effective.rules;
         effective=std::move(next);effectiveReady=true;effectiveIdentity=identity;activeProfile=wanted;
+        if(rulesOnly)background.Reconfigure(++backgroundEpoch,previousRules,effective.rules);else InvalidateBackground();
+        if(rulesOnly){ReconcileBackground(now);PruneLeases(now);return true;}
         for(auto& [id,n]:nodes){auto p=effective.monitors.find(id);bool enabled=p==effective.monitors.end()||p->second.enabled;
             if(!n.manual||!enabled)n={now,++serial,enabled?State::Desktop:State::Disabled,false};}
+        PruneLeases(now);
         return true;
     }
     void Reset(Time now) {inputBoundary=now;manualPreferences.clear();for(auto& [id,n]:nodes){(void)id;n={now,++serial,State::Desktop,false};}}
@@ -373,7 +452,8 @@ struct Controller {
     Reason Inhibitor(const std::string& id,const Media& m,Time now,uint32_t& flags) const {
         auto& c=PolicyNow();auto p=Pref(id);Reason primary=Reason::Idle;auto add=[&](Reason r){flags|=1u<<static_cast<unsigned>(r);if(primary==Reason::Idle)primary=r;};
         if(c.controllerInput&&activityStale)add(Reason::Stale);
-        for(auto& rule:c.rules)if(rule.kind==0&&!foreground.owned&&(!foreground.valid||!foreground.app.known||(RuleMatch(rule,foreground.app)&&(rule.global||foreground.monitors.empty()||foreground.monitors.contains(id)))))add(!foreground.valid||!foreground.app.known?Reason::Stale:Reason::App);
+        if(BackgroundActive(id,now))add(Reason::Background);
+        for(auto& rule:c.rules)if(rule.enabled&&rule.kind==0&&!foreground.owned&&(!foreground.valid||!foreground.app.known||(RuleMatch(rule,foreground.app)&&(rule.global||foreground.monitors.empty()||foreground.monitors.contains(id)))))add(!foreground.valid||!foreground.app.known?Reason::Stale:Reason::App);
         if(p.fullscreen&&fullscreen.contains(id))add(Reason::Fullscreen);
         if(p.media<0?c.media:p.media!=0){if(!m.valid||now<m.at||now-m.at>static_cast<Time>(std::max(2000,c.poll*2)))add(Reason::Stale);
             else if(m.any&&(!c.perMedia||m.ambiguous||m.monitors.contains(id)))add(Reason::Media);}
@@ -383,6 +463,7 @@ struct Controller {
     Explanation Explain(const std::string& id,const Media& m,Time now)const {
         Explanation e;auto it=nodes.find(id);if(it==nodes.end()){e.primary=Reason::Disabled;e.flags=1u<<static_cast<unsigned>(e.primary);return e;}auto& n=it->second;auto p=Pref(id);
         if(hardwareFaults.contains(id))e.flags|=1u<<static_cast<unsigned>(Reason::HardwareFault);
+        if(leases.contains(id)&&leases.at(id).deadline>now)e.flags|=1u<<static_cast<unsigned>(Reason::KeepAwake);
         if(!p.enabled)e.primary=Reason::Disabled;else if(blocked)e.primary=Reason::Session;else if(paused)e.primary=Reason::Paused;
         else if(id!="@span"&&nodes.contains("@span")&&Running(nodes.at("@span").state))e.primary=Reason::Presentation;
         else if(Running(n.state)){
@@ -390,12 +471,15 @@ struct Controller {
             auto deadline=[&](Time origin,int seconds,DeadlineKind kind){if(seconds<=0||now<origin)return;Time until=origin+static_cast<Time>(seconds)*1000,remaining=now>=until?0:until-now;if(e.kind==DeadlineKind::None||remaining<e.remaining){e.kind=kind;e.remaining=remaining;}};
             if(n.state==State::Dim)deadline(n.stageBegan,p.dimSeconds,DeadlineKind::Presentation);
             else {if(n.state!=State::Black){deadline(n.began,p.blackAfter,DeadlineKind::Black);if(n.presentation>=8)deadline(n.began,p.sceneSeconds,DeadlineKind::Black);if(p.hardware&&hardwareFaults.contains(id))deadline(n.began,p.powerAfter,DeadlineKind::Black);}if(p.hardware&&!hardwareFaults.contains(id)&&!n.powerRequested)deadline(n.began,p.powerAfter,DeadlineKind::Hardware);}
-        }else if(snoozeUntil>now){e.primary=Reason::Snoozed;e.remaining=snoozeUntil-now;}
+        }else if(leases.contains(id)&&leases.at(id).deadline>now){e.primary=Reason::KeepAwake;e.kind=DeadlineKind::KeepAwake;e.remaining=leases.at(id).deadline-now;if(snoozeUntil>now)e.flags|=1u<<static_cast<unsigned>(Reason::Snoozed);}
+        else if(snoozeUntil>now){e.primary=Reason::Snoozed;e.remaining=snoozeUntil-now;}
         else if(!PolicyNow().automatic||legacyAutomationBlocked)e.primary=Reason::ManualOnly;
         else {e.primary=Inhibitor(id,m,now,e.flags);if(e.primary==Reason::Idle&&now>=n.last){e.kind=DeadlineKind::Activation;Time delay=static_cast<Time>(p.timeout?p.timeout:PolicyNow().timeout)*1000;e.remaining=now-n.last>=delay?0:delay-(now-n.last);}}
         e.flags|=1u<<static_cast<unsigned>(e.primary);return e;
     }
     void Tick(Time now,const Media& m) {
+        PruneLeases(now);
+        ReconcileBackground(now);
         if(snoozeUntil&&now>=snoozeUntil)Snooze(now,0);
         bool spanning=nodes.contains("@span")&&Running(nodes.at("@span").state);
         for(auto& [id,n]:nodes){auto p=Pref(id);auto& c=PolicyNow();
@@ -403,8 +487,8 @@ struct Controller {
             if(!p.enabled||paused||blocked){if(Running(n.state))n.generation=++serial;n.state=p.enabled?State::Desktop:State::Disabled;n.manual=false;n.last=now;explanations[id]=Explain(id,m,now);continue;}
             if(Running(n.state)&&n.state!=State::Dim&&n.state!=State::Black&&now>=n.began&&((p.blackAfter>0&&now-n.began>=static_cast<Time>(p.blackAfter)*1000)||(p.hardware&&p.powerAfter>0&&now-n.began>=static_cast<Time>(p.powerAfter)*1000)||(n.presentation>=8&&now-n.began>=static_cast<Time>(p.sceneSeconds)*1000)||(p.batteryBlack&&powerSource==PowerSource::DC))){n.state=State::Black;n.presentation=-1;n.generation=++serial;}
             if(!n.manual){
-                if(!c.automatic||legacyAutomationBlocked||snoozeUntil>now){if(Running(n.state))n.generation=++serial;n.state=State::Desktop;n.last=now;}
-                else if(Suppress(id,m,now)){if(Running(n.state))n.generation=++serial;n.state=State::Suppressed;n.last=now;}
+                if(!c.automatic||legacyAutomationBlocked||snoozeUntil>now||leases.contains(id)){if(Running(n.state))n.generation=++serial;n.state=State::Desktop;n.last=now;}
+                else if(Suppress(id,m,now)){if(Running(n.state))n.generation=++serial;n.state=State::Suppressed;if(!BackgroundActive(id,now))n.last=now;}
                 else if(now<n.last)n.last=now;
                 else if(n.state==State::Dim&&now>=n.stageBegan&&now-n.stageBegan>=static_cast<Time>(p.dimSeconds)*1000){n.generation=++serial;n.presentation=Presentation(p);n.state=n.presentation<0?State::Black:State::Launching;n.began=now;}
                 else if(now-n.last>=static_cast<Time>(p.timeout?p.timeout:c.timeout)*1000&&!Running(n.state)){n.generation=++serial;n.presentation=Presentation(p);n.state=p.dim>0?State::Dim:n.presentation<0?State::Black:State::Launching;n.began=now;n.stageBegan=now;}

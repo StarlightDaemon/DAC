@@ -1,5 +1,10 @@
 # Native standalone architecture
 
+Tray maintenance borrows immutable host icons, initialized before the worker and
+deleted only after it joins. Requests never copy or destroy them; stale-result
+and pending-request ownership remain bounded. See the
+[resource attribution record](GDI_ATTRIBUTION.md).
+
 DAC is a C++23 Win32 executable with no mandatory service, elevated host, browser,
 network account, injection, or Windhawk dependency.
 
@@ -9,8 +14,54 @@ monitor policy state, input boundaries, and diagnostic transition accounting.
 `src/platform.hpp` owns Win32 adapters, presentation windows, contained children,
 media observation, settings/tray UI, persistence, and helper recovery.
 `src/standalone.cpp` owns executable dispatch and bounded process shutdown.
+The [F16/F04/F11 record](INSPECTOR_MAP_BACKGROUND.md) describes the subsequent
+schema 5 extension. `display-snapshot.hpp` owns bounded immutable OS scan results;
+the UI accepts them against topology/configuration epochs. `inspector.hpp` and
+`display-map.hpp` read the accepted catalog and cached controller observations.
+`background-policy.hpp` owns timestamp/epoch-aware rule matching and limited
+grace; `background-process.hpp` owns the lazy one-Hz user/session worker and RAII
+query handles. `background-settings.hpp` adds the nested native rule draft.
+Background-only edits preserve independent peer state and accepted media samples.
+Physical DDC probing remains deferred; cached state never proves compatibility.
 The generated `generated/fujin.hpp` is included inside the DAC namespace and
 contains typed palette/typography/metric values from the pinned dependency.
+
+Schema 4 adds `Config::nicknames`, a bounded stable-ID map outside `Policy` and
+profiles. `nickname.<hex UTF-8 identity>=<hex UTF-8 name>` avoids delimiter and
+native-menu interpretation. Schemas 1–3 remain readable with empty metadata;
+nickname keys require schema 4 and are forbidden in nested profile bodies.
+`DisplayLabel` formats labels for all display surfaces, with numbered visual
+disambiguation. Identity, grants, recovery and diagnostics continue using their
+existing keys/approved aliases. Cosmetic saves do not reset effective policy or
+presentation generations. Explicit reset/import still cancels owners. Migration
+verifies the original bytes in a schema-specific backup before replacement.
+
+`Controller::leases` owns at most one temporary automatic inhibitor per display.
+It is runtime state, retained through session resets and eligible profile changes,
+pruned on disconnect/ineligibility/expiry, and cleared at process shutdown.
+Grant/replacement/cancellation/expiry mutate only the selected node. Cancelling
+or expiring an eligible nonmanual target starts a fresh idle interval. Existing
+shared input attribution is unchanged; applying a lease never fabricates input.
+Manual/sticky owners remain authoritative, and an active span rejects per-display
+actions. A manual start may run through a retained lease. Global snooze and leases
+are independently required to end before automatic activation can resume.
+
+The Windows adapter uses native `GetTickCount64`, including suspended time, for
+lease deadlines. Absolute local input is resolved once using the applicable
+Windows time-zone rules, checking both standard/daylight offsets by UTC-to-local
+round trip. Gaps and folds fail explicitly. The wall-clock sample is paired with
+the monotonic origin after time-zone lookup; later clock changes do not retime it.
+See Microsoft's [Windows time documentation](https://learn.microsoft.com/en-us/windows/win32/sysinfo/windows-time).
+
+`src/display-controls.hpp` contains only guarded in-process UI-owner actions and
+the civil-time resolver; it introduces no transport or external command surface.
+Actions capture stable identity plus a topology epoch and reject pending/stale
+targets. Cancellation calls `ReconcileWake` immediately to hide/cancel owners;
+the existing timer performs deferred launch and cleanup. `src/flyout.hpp` reads
+cached catalog/controller state, retains native controls and edit drafts during
+countdown refresh, and uses Fujin themes, system high contrast, DPI layout and
+native scrolling. It does no synchronous filesystem/media/shell/hardware probing
+when opening or refreshing. F01 remains on hold.
 
 The UI thread owns the controller and native windows. Raw input uses the queued
 message timestamp and signed pointer position, rather than current pointer

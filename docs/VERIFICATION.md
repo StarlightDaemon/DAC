@@ -5,6 +5,24 @@ summarizes newly executed local validation of the sanitized publication source.
 Raw logs, XML, screenshots, environment data and detailed receipts remain in
 ignored local storage. They are neither tracked nor distributed.
 
+## Development additions after this validation
+
+This branch adds source that the publication validation below did not cover:
+F02 Display controls, F03 friendly names (settings schema 4), F05 temporary
+keep-awake, F16 display inspector, F04 display map and F11 running-application
+rules (settings schema 5), plus the tray resource-ownership correction from the
+GDI investigations. The production source hashes below identify the earlier
+published source, not this branch.
+
+Development records: [FEATURE_IMPLEMENTATION](FEATURE_IMPLEMENTATION.md),
+[INSPECTOR_MAP_BACKGROUND](INSPECTOR_MAP_BACKGROUND.md),
+[GDI_LIFETIME_INVESTIGATION](GDI_LIFETIME_INVESTIGATION.md),
+[GDI_REVIEW](GDI_REVIEW.md), [GDI_ENDURANCE](GDI_ENDURANCE.md) and
+[GDI_ATTRIBUTION](GDI_ATTRIBUTION.md).
+The raw evidence those development records cite was kept in local development storage and is
+not tracked in this repository. Their results are not publication validation.
+Rerun the commands below before treating this source as validated.
+
 ## Source and dependency identity
 
 The publication branch starts directly at DAC's initial commit
