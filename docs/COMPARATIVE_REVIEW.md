@@ -2,6 +2,11 @@
 
 > Paths under `evidence/` name local development evidence that is not tracked
 > in this repository, so they appear as plain paths rather than links.
+>
+> Links to source, test and build files (`src/`, `tests/`, `resources/` and
+> `CMakeLists.txt`) resolve only in a checkout of the [DAC source
+> repository](https://github.com/StarlightDaemon/DAC). The portable package does
+> not include them.
 
 Review date: October 15, 2026, America/Denver. Source baseline: `3ef15bdd7947f331dd33c1a7e85fc9802f5a2f3e`. Product: DAC 0.1.0 development candidate, Windows 11 x64 target.
 

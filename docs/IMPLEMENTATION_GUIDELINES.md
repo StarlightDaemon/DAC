@@ -1,5 +1,10 @@
 # DAC feature implementation guidelines
 
+> Links to source, test, build and tooling files (`src/`, `tests/`, `tools/`,
+> `cmake/`, `resources/` and `CMakeLists.txt`) resolve only in a checkout of the
+> [DAC source repository](https://github.com/StarlightDaemon/DAC). The portable
+> package does not include them.
+
 Implementation status update, October 16: F02/F03/F05 are delivered in
 [FEATURE_IMPLEMENTATION.md](FEATURE_IMPLEMENTATION.md); scoped F16/F04/F11 are
 delivered in [INSPECTOR_MAP_BACKGROUND.md](INSPECTOR_MAP_BACKGROUND.md).

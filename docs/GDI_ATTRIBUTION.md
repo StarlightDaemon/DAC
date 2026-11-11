@@ -2,6 +2,10 @@
 
 > Paths under `evidence/` name local development evidence that is not tracked
 > in this repository, so they appear as plain paths rather than links.
+>
+> Links to test files under `tests/` resolve only in a checkout of the [DAC
+> source repository](https://github.com/StarlightDaemon/DAC). The portable
+> package does not include them.
 
 This follows the [30-minute endurance investigation](GDI_ENDURANCE.md). All
 earlier captures, including the four nonpassing cases and the unknown historical
