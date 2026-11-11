@@ -32,7 +32,9 @@ function Get-PackageSpecification {
                 $publicDocument = $file.source -cmatch '^docs/[A-Za-z0-9_-]+\.md$'
                 $rootDocument = $file.source -cin @('README.md','LICENSE','CHANGELOG.md','THIRD_PARTY_NOTICES.md')
                 $fujinLicense = $file.source -ceq 'third_party/fujin/LICENSE' -and $file.path -ceq 'licenses/Fujin-LICENSE'
-                if (-not $fujinLicense -and (-not ($publicDocument -or $rootDocument) -or $file.path -cne $file.source)) {
+                # The roadmap catalog is the only reviewed data document; other docs JSON stays out.
+                $featureCatalog = $file.source -ceq 'docs/FEATURE_CATALOG.json'
+                if (-not $fujinLicense -and (-not ($publicDocument -or $rootDocument -or $featureCatalog) -or $file.path -cne $file.source)) {
                     throw "Unsupported repository package source: $($file.source)"
                 }
             }

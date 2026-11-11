@@ -39,6 +39,11 @@
     },
     {
       "kind": "repository",
+      "source": "docs/FEATURE_CATALOG.json",
+      "path": "docs/FEATURE_CATALOG.json"
+    },
+    {
+      "kind": "repository",
       "source": "docs/FEATURE_IMPLEMENTATION.md",
       "path": "docs/FEATURE_IMPLEMENTATION.md"
     },

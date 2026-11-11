@@ -75,9 +75,9 @@ is 45 minutes; individual steps and child commands also have execution bounds.
    readiness probe, check archive sizes and verify Fujin.
 2. `Release`, then `Debug`: separate Ninja build directories, explicit tests ON,
    existing warnings-as-errors and hardening flags, compilation at parallelism 3.
-   Check the exact reviewed 27-test inventory, run sequentially with a 130-second
+   Check the exact reviewed 30-test inventory, run sequentially with a 130-second
    test timeout and a five-minute command bound, and require fresh JUnit results
-   with all 27 tests run and no failures, errors or skips. Private-desktop
+   with all 30 tests run and no failures, errors or skips. Private-desktop
    unavailability fails validation; no test is replaced or bypassed.
 3. `Analyze`: the production translation unit and generated Fujin header using
    the Release definitions and [documented MSVC analysis](STATIC_ANALYSIS.md),
@@ -86,7 +86,7 @@ is 45 minutes; individual steps and child commands also have execution bounds.
 4. `Package`: independently build Release without tests and require the shipping
    executable hashes to match. Run PE inspection and all seven packaging
    regression checks, create a package in `build/ci-package`, then independently
-   verify the 27-entry allowlist, payload hashes, version, Windows imports,
+   verify the 28-entry allowlist, payload hashes, version, Windows imports,
    hardening flags and byte-identical normalized ZIP reconstruction.
 5. `Audit`: scan history after the reviewed initial publication commit
    `48f8d00b1eb2d46a6b0629e339d2716b4a0b76d0`, the final tracked/nonignored
@@ -198,7 +198,7 @@ its extracted executable. Documentation changes can change portable ZIP bytes;
 never compare them to a hardcoded historical publication digest. These checks
 detect byte mismatches; provenance still depends on selecting the trusted main
 run and matching its commit. The existing CI package verifier additionally checks
-the complete 27-file allowlist, PE properties and normalized archive integrity.
+the complete 28-file allowlist, PE properties and normalized archive integrity.
 
 Review [QUALIFICATION](QUALIFICATION.md) before any separately authorized visible
 desktop test. Per-monitor wake, all-covered recovery, mixed DPI/HDR and session
