@@ -90,7 +90,7 @@ is 45 minutes; individual steps and child commands also have execution bounds.
    hardening flags and byte-identical normalized ZIP reconstruction.
 5. `Audit`: scan history after the reviewed initial publication commit
    `48f8d00b1eb2d46a6b0629e339d2716b4a0b76d0`, the final tracked/nonignored
-   worktree and all 19 staged package files, including executable ASCII/UTF-16
+   worktree and all 28 staged package files, including executable ASCII/UTF-16
    strings. The existing publication audit's noreply identity requirements and
    heuristic credential/path checks remain intact. Findings or incomplete scans
    fail the job; future contributor identities may require publication review.

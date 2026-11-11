@@ -154,9 +154,9 @@ not establish that such an artifact exists. CI documentation changes can change
 the portable archive digest; verify the downloaded ZIP against its own adjacent
 receipt, then verify extracted DAC.exe against its internal SHA256SUMS.txt.
 
-`tools/package-manifest.json` declares exactly 19 archive files: DAC.exe, four
-root product/license documents, eleven reviewed Markdown documents, the Fujin
-license, a fixed-field PE report and SHA256SUMS.txt. Packaging and CMake installation
+`tools/package-manifest.json` declares exactly 28 archive files: DAC.exe, four
+root product/license documents, nineteen reviewed Markdown documents, the feature
+catalog JSON, the Fujin license, a fixed-field PE report and SHA256SUMS.txt. Packaging and CMake installation
 use individually declared files. Raw evidence, prior delivery receipts, arbitrary
 documents, caches, build tools, source/test binaries and previous packages cannot
 enter through directory recursion. ZIP names use ordinal ordering, fixed timestamps
