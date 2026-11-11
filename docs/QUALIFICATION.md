@@ -92,6 +92,13 @@ The automated fixtures cover:
   light/dark/high-contrast state, previews, scenes, controller and battery
   observations, and redacted diagnostics. Full settings file-picker/confirmation
   behavior remains source-reviewed; these fixtures are not visible UI acceptance.
+- Feature additions in the `features`, `flyout-resource-control` and
+  `inspector-map-background` groups: friendly-name migration, Unicode/duplicate
+  names, import disarming and redaction; keep-awake replacement, cancellation,
+  expiry and DST rejection; Display controls drafts, focus, themes and DPI with up
+  to 64 displays; 256 measured flyout allocation/deletion cycles with IME
+  disabled only in that fixture; and the display inspector, map and
+  running-application rules. These hidden fixtures are not visible UI acceptance.
 - Shipping-executable version/help/rejection paths, invalid hardware-helper
   rejection, bounded private-desktop startup, second-instance no-op, retained
   native ownership and scoped `--stop`, with build-local test profiles.
@@ -129,6 +136,7 @@ runner: [branch push](https://github.com/StarlightDaemon/DAC/actions/runs/378779
 and [PR synthetic-merge validation](https://github.com/StarlightDaemon/DAC/actions/runs/37877951558).
 Both runs completed successfully, including Release and Debug 27/27 suites,
 static analysis, pinned-input checks, reproducibility, packaging and privacy audit.
+Those suites predate the three feature test groups; CI now requires all 30 tests.
 These automated results do not qualify visible desktops or physical monitors.
 Required-check/branch-protection configuration remains a separate decision.
 

@@ -79,6 +79,10 @@ cmake --build build/repro --parallel 2
 ./tools/verify-package.ps1 -Archive packages/DAC-0.1.0-dev-windows-x64.zip
 ```
 
+The suite results below come from the 27-test suite that preceded this branch.
+The current suite has 30 tests: it adds the `features`, `flyout-resource-control`
+and `inspector-map-background` groups, which this recipe has not yet run.
+
 | Check | Newly executed result |
 | --- | --- |
 | Release full regression suite | 27/27 passed; zero failures/skips; 95.17 seconds |
