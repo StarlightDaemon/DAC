@@ -152,9 +152,9 @@ if ($Phase -eq 'Audit') {
         '-PackageDirectory','build/ci-package/DAC-0.1.0-dev-windows-x64','-PackageEntryList',$entryList,
         '-Report','out/private/ci/publication-audit.json') 540)
     $audit = Get-Content -LiteralPath $log[-1] -Raw | ConvertFrom-Json
-    if ($audit.result -cne 'passed' -or $audit.findings -ne 0 -or $audit.packageFiles -ne 19 -or -not $audit.worktreeIncluded) {
+    if ($audit.result -cne 'passed' -or $audit.findings -ne 0 -or $audit.packageFiles -ne 27 -or -not $audit.worktreeIncluded) {
         throw 'Publication audit was incomplete or requires review.'
     }
-    Write-Output 'History, final worktree and 19 package files: zero privacy findings. Executable strings included.'
+    Write-Output 'History, final worktree and 27 package files: zero privacy findings. Executable strings included.'
 }
 Write-Output ('CI phase ' + $Phase + ': passed.')
