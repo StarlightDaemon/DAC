@@ -73,12 +73,12 @@ Pyrsys B.V. as publisher. Portable provisioning follows
 [upstream isportable.iss](https://github.com/jrsoftware/issrc/blob/is-7_1_0/isportable.iss).
 
 Build consumes a verified normalized ZIP and matching external receipt. Every one
-of its 19 allowed files gets an explicit compiler entry; no wildcards, private
+of its 28 allowed files gets an explicit compiler entry; no wildcards, private
 logs, source, compiler or dependencies enter Setup. Staging, logs and metadata
 remain ignored. Existing output directories are refused; select a fresh directory
 for a retry. Verification checks the output receipt, AMD64 PE, unsigned status,
 compiler/source/include identity and input package. Installed verification derives
-every payload hash from archive bytes and requires exactly the 19 product files
+every payload hash from archive bytes and requires exactly the 28 product files
 plus the sidecar and Inno's two uninstall files.
 
 The publication audit admits only the exact installer script as source text.
@@ -91,13 +91,13 @@ all path, credential and other identity checks remain intact.
 ## Hosted compile and artifact verification
 
 The hosted Windows Server workflow retains the native Bootstrap, Release, Debug,
-Analyze and Package gates and their exact 27-test inventories. Its Installer phase
+Analyze and Package gates and their exact 30-test inventories. Its Installer phase
 then verifies the pinned Inno archive size, SHA-256, valid signer and 132-file
 inventory, executes exactly eight privacy-boundary checks, builds two unsigned
 shipping installers in fresh independent directories and compares their bytes.
 Both outputs independently verify the current source commit and complete source
 file inventory, modified-tree state, compiler inventory, canonical payload include,
-ZIP receipt, PE properties and all 19 payload identities. Local modified sources
+ZIP receipt, PE properties and all 28 payload identities. Local modified sources
 are recorded explicitly; hosted source identity is the checked-out event revision.
 A source snapshot before compilation must still match after compilation; changes
 to the commit, working tree status, file count or bytes reject the build. The 48
@@ -118,7 +118,7 @@ individual payload files to 16 MiB and decoder dictionaries to 64 MiB. Compiler
 and decoder processes have 60-second and 30-second bounds respectively.
 
 The final privacy audit scans the shipping EXE, decoded runtime, all decoded
-metadata and all 19 embedded product files. Metadata and product files receive
+metadata and all 28 embedded product files. Metadata and product files receive
 the existing path, credential and identity rules without the vendor-token
 exception. The existing narrowly pinned whole-token exception remains restricted
 to installer/runtime ASCII identity findings. Raw evidence stays ignored and is
@@ -197,7 +197,7 @@ their own timers; fixtures never issue the shared stop command. No valid hardwar
 operation or visible-desktop UI is started. Inno's uninstall launcher can finish
 before its cleanup descendant: the fixture waits for maintenance exclusion to
 release before retrying, rather than assuming parent exit means complete teardown.
-The existing 27-test DAC suites remain separate and unchanged.
+The existing 30-test DAC suites remain separate and unchanged.
 
 Fixture success is not a physical desktop installation pass. Actual Installed
 Apps/tray/Explorer/sign-in behavior, another interactive session, architecture/OS

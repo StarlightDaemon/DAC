@@ -64,7 +64,7 @@ foreach ($file in $spec.files) {
 }
 if ([IO.File]::ReadAllText((Join-Path $output 'payload.iss')) -cne (($lines -join "`n")+"`n")) {throw 'Noncanonical compiler input include.'}
 $embedded=Read-InstallerEmbeddedContent $exe
-if (-not $embedded.complete -or $embedded.payloads.Count -ne 19) {throw 'Embedded payload verification incomplete.'}
+if (-not $embedded.complete -or $embedded.payloads.Count -ne 28) {throw 'Embedded payload verification incomplete.'}
 $destinations=@($embedded.payloads.destination | Sort-Object)
 $expectedDestinations=@($spec.files.path | ForEach-Object {'{app}\'+$_.Replace('/','\')} | Sort-Object)
 if (($destinations -join '|') -cne ($expectedDestinations -join '|') -or @($embedded.payloads | Where-Object {$_.fileType -ne 0}).Count) {throw 'Compiled destination/file inventory mismatch.'}
@@ -96,4 +96,4 @@ if ($InstalledDirectory) {
         if ((Get-Item -LiteralPath $path).Length -ne $file.bytes -or (Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant() -cne $file.sha256) {throw 'Installed payload bytes differ.'}
     }
 }
-[ordered]@{installer=[IO.Path]::GetFileName($exe);sha256=$hash;packageSha256=$input.archiveSha256;payloadFiles=$spec.files.Count;installedPayloadChecked=[bool]$InstalledDirectory;fixture=$receipt.fixture;sourceCommit=$source.commit;sourceTreeSha256=$source.sha256;sourceFiles=$source.files;workingTreeModified=$source.modified;compilerSha256=$compiler.compilerSha256;embeddedPayloadChecked=$true;embeddedPayloadFiles=19;unsigned=$true;productExecuted=$false;verification='passed'} | ConvertTo-Json
+[ordered]@{installer=[IO.Path]::GetFileName($exe);sha256=$hash;packageSha256=$input.archiveSha256;payloadFiles=$spec.files.Count;installedPayloadChecked=[bool]$InstalledDirectory;fixture=$receipt.fixture;sourceCommit=$source.commit;sourceTreeSha256=$source.sha256;sourceFiles=$source.files;workingTreeModified=$source.modified;compilerSha256=$compiler.compilerSha256;embeddedPayloadChecked=$true;embeddedPayloadFiles=28;unsigned=$true;productExecuted=$false;verification='passed'} | ConvertTo-Json

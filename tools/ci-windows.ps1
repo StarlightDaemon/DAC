@@ -34,7 +34,7 @@ function Assert-ReviewedWorkflow([string]$Workflow) {
 }
 function Assert-InstallerVerification($Evidence) {
     if ($Evidence.verification -cne 'passed' -or $Evidence.embeddedPayloadChecked -ne $true -or
-        $Evidence.embeddedPayloadFiles -ne 19 -or $Evidence.payloadFiles -ne 19 -or $Evidence.fixture -ne $false -or
+        $Evidence.embeddedPayloadFiles -ne 28 -or $Evidence.payloadFiles -ne 28 -or $Evidence.fixture -ne $false -or
         $Evidence.unsigned -ne $true -or $Evidence.productExecuted -ne $false -or
         $Evidence.sourceCommit -cnotmatch '^[0-9a-f]{40}$' -or $Evidence.sourceTreeSha256 -cnotmatch '^[0-9a-f]{64}$') {throw 'Installer evidence incomplete.'}
 }
@@ -207,9 +207,9 @@ if ($Phase -eq 'Installer') {
     Assert-RuntimePrivacyRegression (Get-Content -LiteralPath $runtimePrivacy[-1] -Raw | ConvertFrom-Json)
     $regression=@(Invoke-PrivateScript 'installer-integrity-regression' 'test-installer-integrity.ps1' @('-Installer',$first,'-Archive',$archive) 180)
     $integrity=Get-Content -LiteralPath $regression[-1] -Raw | ConvertFrom-Json
-    if ($integrity.verification -cne 'passed' -or $integrity.checks -ne 48 -or $integrity.compiledPayloadFiles -ne 19 -or
+    if ($integrity.verification -cne 'passed' -or $integrity.checks -ne 48 -or $integrity.compiledPayloadFiles -ne 28 -or
         $integrity.installationExecuted -ne $false -or $integrity.sourceAndToolchainMutated -ne $false) {throw 'Installer regression evidence incomplete.'}
-    Write-Output 'Two unsigned installers: identical bytes; source/compiler/package provenance and all 19 decoded payload files verified. Installation acceptance deferred.'
+    Write-Output 'Two unsigned installers: identical bytes; source/compiler/package provenance and all 28 decoded payload files verified. Installation acceptance deferred.'
 }
 
 if ($Phase -eq 'Audit') {

@@ -42,7 +42,7 @@ function Write-Receipt($Value) {[IO.File]::WriteAllText($fixtureExe+'.verificati
 Write-Receipt $receipt
 Invoke-InstallerTool $pwsh @('-NoProfile','-File',(Join-Path $PSScriptRoot 'verify-installer.ps1'),'-Installer',$fixtureExe,'-Archive',$archivePath,'-RequireShipping') (Join-Path $private 'positive') 120
 $evidence=Get-Content -LiteralPath (Join-Path $private 'positive.stdout.log') -Raw | ConvertFrom-Json
-if ($evidence.verification -cne 'passed' -or $evidence.embeddedPayloadChecked -ne $true -or $evidence.embeddedPayloadFiles -ne 19) {throw 'Installer positive evidence incomplete.'}
+if ($evidence.verification -cne 'passed' -or $evidence.embeddedPayloadChecked -ne $true -or $evidence.embeddedPayloadFiles -ne 28) {throw 'Installer positive evidence incomplete.'}
 $checks++
 foreach ($field in @('formatVersion','sourceCommit','sourceTreeSha256','sourceFiles','workingTreeModified','archiveSha256','executableSha256','compilerSha256','compilerVersion','scriptSha256','includeSha256','installerSha256','installerBytes','signed','productExecuted','fixture','fixtureId')) {
     $modified=$baseline | ConvertFrom-Json
@@ -162,4 +162,4 @@ foreach ($scope in @('installer-metadata','installer-payload')) {
         $checks++
     }
 }
-[ordered]@{verification='passed';checks=$checks;compiledPayloadFiles=19;installationExecuted=$false;sourceAndToolchainMutated=$false} | ConvertTo-Json
+[ordered]@{verification='passed';checks=$checks;compiledPayloadFiles=28;installationExecuted=$false;sourceAndToolchainMutated=$false} | ConvertTo-Json

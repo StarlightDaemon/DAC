@@ -214,14 +214,14 @@ function Read-InstallerEmbeddedContent([string]$Installer) {
     $cursor=[DacInstallerCursor]::new($metadata)
     $header=$cursor.Record(39,4,166)
     $counts=@(0..16 | ForEach-Object {[BitConverter]::ToInt32($header.Tail,4*$_)})
-    if (@($counts | Where-Object {$_ -lt 0 -or $_ -gt 1024}).Count -ne 0 -or $counts[8] -ne 20 -or $counts[9] -ne 19 -or $counts[15] -ne 0 -or $counts[16] -ne 0 -or $locations.Length -ne 19*89) {throw 'Unexpected compiled file/run inventory.'}
+    if (@($counts | Where-Object {$_ -lt 0 -or $_ -gt 1024}).Count -ne 0 -or $counts[8] -ne 29 -or $counts[9] -ne 28 -or $counts[15] -ne 0 -or $counts[16] -ne 0 -or $locations.Length -ne 28*89) {throw 'Unexpected compiled file/run inventory.'}
     # Packed non-string tails from the pinned Shared.Struct definitions.
     $schemas=@(@(4,4,19),@(2,0,4),@(0,1,0),@(4,0,30),@(5,0,39),@(6,0,23),@(7,0,27),@(3,0,0))
     for ($group=0;$group -lt 8;$group++) {for ($n=0;$n -lt $counts[$group];$n++) {$null=$cursor.Record($schemas[$group][0],$schemas[$group][1],$schemas[$group][2])}}
     $entries=@(for ($n=0;$n -lt $counts[8];$n++) {$cursor.Record(15,1,81)})
     $payloads=[Collections.Generic.List[object]]::new(); $chunks=@{}; [long]$expanded=0; [long]$decodedTotal=0
     if ($entries[0].Strings[1] -cne '' -or $entries[0].Tail[80] -ne 1 -or [BitConverter]::ToInt32($entries[0].Tail,53) -ne -1) {throw 'Unexpected generated uninstaller entry.'}
-    for ($n=0;$n -lt 19;$n++) {
+    for ($n=0;$n -lt 28;$n++) {
         $entry=$entries[$n+1];$index=[BitConverter]::ToInt32($entry.Tail,53)
         if ($index -ne $n) {throw 'Noncanonical payload location.'}
         $loc=[DacInstallerReader]::Part($locations,89*$n,89)

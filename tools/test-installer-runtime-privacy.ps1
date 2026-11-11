@@ -47,7 +47,7 @@ Check ($provenance.verification -ceq 'passed') 'actual-pinned-vendor-provenance'
 $embedded=Read-InstallerEmbeddedContent (Resolve-PackageLocalPath $repository $Installer)
 $runtime=$embedded.runtime
 $proof=Get-ReviewedRuntimeProof $runtime $vendor $provenance
-Check ($proof.resourceBytes -eq 1452 -and $embedded.payloads.Count -eq 19) 'actual-decoded-resource-proof' 'positive'
+Check ($proof.resourceBytes -eq 1452 -and $embedded.payloads.Count -eq 28) 'actual-decoded-resource-proof' 'positive'
 # Obtain the reviewed word from pinned bytes. Never persist a host identifier.
 $word=[Text.Encoding]::Unicode.GetString($vendor,6863116,18)
 $identity=[pscustomobject]@{name='private-runtime-identity';regex=[regex]::new('(?<![\p{L}\p{N}_])'+[regex]::Escape($word)+'(?![\p{L}\p{N}_])',[Text.RegularExpressions.RegexOptions]::IgnoreCase,[TimeSpan]::FromSeconds(3))}

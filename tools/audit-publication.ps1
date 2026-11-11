@@ -408,7 +408,7 @@ if ($Installer) {
     . (Join-Path $PSScriptRoot 'Package.Common.ps1')
     . (Join-Path $PSScriptRoot 'Installer.Common.ps1')
     $embedded=Read-InstallerEmbeddedContent $installerPath
-    if (-not $embedded.complete -or $embedded.payloads.Count -ne 19) {throw 'Embedded installer audit incomplete.'}
+    if (-not $embedded.complete -or $embedded.payloads.Count -ne 28) {throw 'Embedded installer audit incomplete.'}
     $vendorEvidence=Get-ReviewedRuntimeVendorEvidence
     $runtimeProof=Get-ReviewedRuntimeProof $embedded.runtime ([IO.File]::ReadAllBytes($vendor)) $vendorEvidence
     Scan-Bytes $embedded.runtime 'installer' 'decoded-setup-runtime' @('decoded-setup-runtime') $true $false $runtimeProof

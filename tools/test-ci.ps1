@@ -160,7 +160,7 @@ foreach ($modified in @(
     $workflow.Replace('de0fac2e4500dabe0009e67214ff5f5447ce83dd','v6'),
     $workflow.Replace('run: ./tools/ci-windows.ps1 -Phase Installer','if: false'+"`n"+'        run: ./tools/ci-windows.ps1 -Phase Installer')
 )) {Expect-Rejection {Assert-ReviewedWorkflow $modified}}
-$evidence=[pscustomobject]@{verification='passed';embeddedPayloadChecked=$true;embeddedPayloadFiles=19;payloadFiles=19;fixture=$false;unsigned=$true;productExecuted=$false;sourceCommit=('a'*40);sourceTreeSha256=('b'*64)}
+$evidence=[pscustomobject]@{verification='passed';embeddedPayloadChecked=$true;embeddedPayloadFiles=28;payloadFiles=28;fixture=$false;unsigned=$true;productExecuted=$false;sourceCommit=('a'*40);sourceTreeSha256=('b'*64)}
 Assert-InstallerVerification $evidence; $script:checks++
 foreach ($field in @('verification','embeddedPayloadChecked','embeddedPayloadFiles','payloadFiles','fixture','unsigned','productExecuted','sourceCommit','sourceTreeSha256')) {
     $invalid=$evidence | ConvertTo-Json | ConvertFrom-Json
