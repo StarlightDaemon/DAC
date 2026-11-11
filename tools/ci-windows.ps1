@@ -63,14 +63,15 @@ function Read-CiXml([string]$Path) {
 }
 function Get-ExpectedTests {
     return @('policy','queued-wake-probe','storage','catalog','faults','containment','host-death','emergency',
-        'lifecycle','sessions','session-soak','slides','power','advanced','nextbeta','nativewake','wakeperf',
+        'lifecycle','sessions','session-soak','slides','power','advanced','nextbeta','features',
+        'flyout-resource-control','inspector-map-background','nativewake','wakeperf',
         'idleperf','media','host-preferences','standalone-cli-version','standalone-cli-help','standalone-cli-reject',
         'hardware-helper-reject','standalone-host','standalone-lifecycle','fujin-integrity')
 }
 function Assert-TestNames([string[]]$Names) {
     $expected = @(Get-ExpectedTests | Sort-Object)
-    if ($Names.Count -ne 27 -or (($Names | Sort-Object) -join '|') -cne ($expected -join '|')) {
-        throw 'Expected exactly the reviewed 27-test suite.'
+    if ($Names.Count -ne 30 -or (($Names | Sort-Object) -join '|') -cne ($expected -join '|')) {
+        throw 'Expected exactly the reviewed 30-test suite.'
     }
 }
 function Assert-CiTestReport([string]$Path) {
@@ -115,7 +116,7 @@ if ($Phase -in @('Release','Debug')) {
     if (Test-Path -LiteralPath $junit) { Remove-Item -LiteralPath $junit }
     $null = Invoke-PrivateCommand ($Phase + '-tests') 'ctest.exe' @('--test-dir',$build,'--parallel','1','--timeout','130','--no-tests=error','--output-on-failure','--output-junit',$junit) 300
     Assert-CiTestReport $junit
-    Write-Output ($Phase + ' suite: 27 passed; zero failures/errors/skips.')
+    Write-Output ($Phase + ' suite: 30 passed; zero failures/errors/skips.')
 }
 
 if ($Phase -eq 'Analyze') {
@@ -151,9 +152,9 @@ if ($Phase -eq 'Audit') {
         '-PackageDirectory','build/ci-package/DAC-0.1.0-dev-windows-x64','-PackageEntryList',$entryList,
         '-Report','out/private/ci/publication-audit.json') 540)
     $audit = Get-Content -LiteralPath $log[-1] -Raw | ConvertFrom-Json
-    if ($audit.result -cne 'passed' -or $audit.findings -ne 0 -or $audit.packageFiles -ne 19 -or -not $audit.worktreeIncluded) {
+    if ($audit.result -cne 'passed' -or $audit.findings -ne 0 -or $audit.packageFiles -ne 28 -or -not $audit.worktreeIncluded) {
         throw 'Publication audit was incomplete or requires review.'
     }
-    Write-Output 'History, final worktree and 19 package files: zero privacy findings. Executable strings included.'
+    Write-Output 'History, final worktree and 28 package files: zero privacy findings. Executable strings included.'
 }
 Write-Output ('CI phase ' + $Phase + ': passed.')

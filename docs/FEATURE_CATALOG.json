@@ -1,0 +1,1490 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-10-15",
+  "timezone": "America/Denver",
+  "baseline_commit": "3ef15bdd7947f331dd33c1a7e85fc9802f5a2f3e",
+  "scope": "Repository-wide comparative research with F02/F03/F05 and scoped F16/F04/F11 implementation updates on 2026-10-16. Original research scores, ranks and proposed future work retained. F01 remains on hold. Current verification is in the two implementation records.",
+  "popularity_method": "Reach bands: <=10 stars=1; <=100=2; <=1000=3; <=5000=5; <=10000=7; <=25000=8; <=100000=9; above=10. PowerToys Awake reach capped at 6 because stars cover the suite. P=round(0.6*max donor reach+0.4*min(10,2*donor count)); no matched donor P=1. This is an ecosystem visibility proxy, not measured feature demand.",
+  "priority_method": "round(0.55*usefulness+0.20*fit+0.15*popularity+0.10*(11-effort),1). Rank current candidates descending, then usefulness, then ID; deferred-by-user items have null rank. Original research_rank is retained. Risk/dependencies/qualification override score.",
+  "effort_method": "1-10 relative complexity. 1-3: 2-4 engineer days; 4-6: 5-10; 7-8: 11-20; 9-10: 21-40. Rough initial engineering estimates include local fixtures, exclude physical qualification, signing procurement, translation and community acceptance.",
+  "sources": [
+    {
+      "id": "TW",
+      "name": "Twinkle Tray",
+      "url": "https://github.com/xanderfrangos/twinkle-tray",
+      "license": "MIT",
+      "stars_display": "9.2k",
+      "reach": 7,
+      "evidence": "Brightness flyout, hotkeys, normalization, time/idle changes, contrast, CLI, localization and package managers."
+    },
+    {
+      "id": "MO",
+      "name": "Monitorian",
+      "url": "https://github.com/emoacht/Monitorian",
+      "license": "MIT core",
+      "stars_display": "4.8k",
+      "reach": 5,
+      "evidence": "Individual/unison brightness, adjustable ranges, renaming, capability probe/rescan, languages and SDR content brightness history. Paid add-on code is excluded."
+    },
+    {
+      "id": "LI",
+      "name": "Lively Wallpaper",
+      "url": "https://github.com/lively-community/lively",
+      "license": "GPL-3.0",
+      "stars_display": "19.8k",
+      "reach": 8,
+      "evidence": "Local video and other presentations, Windows screensaver integration, CLI, background-app and coverage pause algorithms, translations."
+    },
+    {
+      "id": "AW",
+      "name": "PowerToys Awake",
+      "url": "https://learn.microsoft.com/en-us/windows/powertoys/awake",
+      "repository": "https://github.com/microsoft/PowerToys",
+      "license": "MIT",
+      "stars_display": "139.4k for entire PowerToys suite",
+      "reach": 6,
+      "evidence": "Timed/expiring keep-awake, separate screen-on option, PID/parent lifetime and CLI. Reach capped because suite stars do not measure Awake adoption."
+    },
+    {
+      "id": "AD",
+      "name": "Auto Dark Mode",
+      "url": "https://github.com/AutoDarkMode/Windows-Auto-Night-Mode",
+      "license": "GPL-3.0",
+      "stars_display": "9.8k",
+      "reach": 7,
+      "evidence": "Solar/sensor switching, delayed changes, battery behavior, accent switching, updates, translations and package managers."
+    },
+    {
+      "id": "LB",
+      "name": "LittleBigMouse",
+      "url": "https://github.com/mgth/LittleBigMouse",
+      "license": "GPL-3.0",
+      "stars_display": "6.7k",
+      "reach": 7,
+      "evidence": "Display layout adjustments, mixed-DPI pointer routing, border resistance, live changes and display diagnostics."
+    },
+    {
+      "id": "SB",
+      "name": "ScreenBlind",
+      "url": "https://github.com/hemigapp/ScreenBlind",
+      "license": "MIT",
+      "stars_display": "3",
+      "reach": 1,
+      "evidence": "Selective password overlays, cursor trapping and additional native scene styles. These are product claims, not Windows secure desktop guarantees."
+    }
+  ],
+  "features": [
+    {
+      "id": "F01",
+      "title": "Full command interface and local IPC",
+      "category": "integration",
+      "tags": [
+        "automation",
+        "power-user",
+        "native"
+      ],
+      "status": "partial",
+      "sources": [
+        "TW",
+        "LI",
+        "AW"
+      ],
+      "local": [
+        "src/standalone.cpp:Main",
+        "src/platform.hpp:WindowProc",
+        "src/platform.hpp:UserSessionScope"
+      ],
+      "usefulness": 9,
+      "fit": 10,
+      "effort": 5,
+      "risk": 5,
+      "phase": "on-hold",
+      "dependencies": [],
+      "value": "Makes DAC usable from shortcuts, scripts and external controllers without editing live settings.",
+      "gap": "The public CLI can launch, stop, report version/help and select a config directory; it cannot list displays, query state, start/stop one presentation, choose a profile or snooze.",
+      "implementation": [
+        "Define versioned request/reply structs and typed actions shared by tray and CLI. Add list, status, start, dismiss, snooze and profile actions; distinguish dismiss from existing --stop shutdown.",
+        "Use bounded local IPC with an explicit logon-SID ACL, remote-client rejection and user/session validation. Dispatch immutable requests to the UI owner; return snapshots with exit codes and a JSON output option.",
+        "Resolve stable IDs against a catalog generation. Keep the singleton scoped per user/session, reject unknown targets and require a separate hardware action that cannot grant permission."
+      ],
+      "acceptance": [
+        "Concurrent clients cannot create a second controller or race topology changes into a different target.",
+        "Malformed/oversized requests, cross-session access, disconnected targets and busy/shutting-down owners fail predictably.",
+        "Existing --stop semantics, emergency recovery and independent-peer idle histories remain intact."
+      ],
+      "popularity": 7,
+      "priority": 8.6,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": null,
+      "research_rank": 1,
+      "roadmap_status": "deferred-by-user"
+    },
+    {
+      "id": "F02",
+      "title": "Compact per-display control flyout",
+      "category": "usability",
+      "tags": [
+        "daily-use",
+        "visibility",
+        "native"
+      ],
+      "status": "implemented",
+      "sources": [
+        "TW",
+        "MO"
+      ],
+      "local": [
+        "src/platform.hpp:Menu",
+        "src/platform.hpp:ExplanationText",
+        "src/policy.hpp:Explanation"
+      ],
+      "usefulness": 9,
+      "fit": 10,
+      "effort": 5,
+      "risk": 3,
+      "phase": "1",
+      "dependencies": [],
+      "value": "Reduces the number of interactions needed to understand and control several monitors.",
+      "gap": "Visible accessibility, mixed-DPI, real session/topology and physical display qualification remain outstanding; see docs/FEATURE_IMPLEMENTATION.md.",
+      "implementation": [
+        "Build a native keyboard-accessible flyout showing one row per connected target: name, presentation, inhibition reason, next deadline and start/dismiss controls.",
+        "Read the existing explanation snapshot on the UI thread; reuse current commands and permission checks rather than creating another controller.",
+        "Keep a stable selection across topology updates and expose equivalent text to accessibility tools."
+      ],
+      "acceptance": [
+        "Each action affects the chosen stable target while peers retain state.",
+        "Rows remain usable at 100-200% DPI, high contrast and with keyboard/screen reader navigation.",
+        "No shell, media or DDC work runs synchronously while opening or refreshing the flyout."
+      ],
+      "popularity": 6,
+      "priority": 8.5,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 1,
+      "research_rank": 2,
+      "roadmap_status": "implemented-awaiting-visible-qualification",
+      "research_gap": "Tray menus and selected-monitor explanations exist; there is no compact all-display surface with simultaneous status, reason, countdown and direct actions.",
+      "implementation_record": "docs/FEATURE_IMPLEMENTATION.md",
+      "implemented_date": "2026-10-16",
+      "verification": "Release and Debug each passed 28/28 isolated CTests; production static analysis and PE checks passed. Visible/physical qualification remains outstanding; see implementation record."
+    },
+    {
+      "id": "F03",
+      "title": "Persistent friendly display names",
+      "category": "usability",
+      "tags": [
+        "daily-use",
+        "multi-monitor",
+        "settings"
+      ],
+      "status": "implemented",
+      "sources": [
+        "MO"
+      ],
+      "local": [
+        "src/platform.hpp:Display",
+        "src/platform.hpp:Catalog",
+        "src/policy.hpp:Preference",
+        "src/platform.hpp:SafeDiagnosticAlias"
+      ],
+      "usefulness": 9,
+      "fit": 10,
+      "effort": 2,
+      "risk": 2,
+      "phase": "1",
+      "dependencies": [],
+      "value": "Makes similar monitors recognizable in settings, tray actions and scripts.",
+      "gap": "Visible accessibility, mixed-DPI, real session/topology and physical display qualification remain outstanding; see docs/FEATURE_IMPLEMENTATION.md.",
+      "implementation": [
+        "Persist a bounded UTF-8 display nickname keyed by stable identity in a versioned schema; preserve disconnected names.",
+        "Use the nickname only for display text. Keep IDs authoritative and permit duplicate names without ambiguous command resolution.",
+        "Redact nicknames in diagnostics because a name may contain personal information."
+      ],
+      "acceptance": [
+        "Names survive reorder, reconnect and settings roundtrip without transferring hardware authority.",
+        "Empty, duplicate and non-Latin names render safely; invalid lengths/encoding are rejected.",
+        "Diagnostics still contain only approved Display N aliases."
+      ],
+      "popularity": 4,
+      "priority": 8.5,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "2-4",
+      "rank": 2,
+      "research_rank": 3,
+      "roadmap_status": "implemented-awaiting-visible-qualification",
+      "research_gap": "OS labels and temporary Display N overlays exist, but users cannot save their own names.",
+      "implementation_record": "docs/FEATURE_IMPLEMENTATION.md",
+      "implemented_date": "2026-10-16",
+      "verification": "Release and Debug each passed 28/28 isolated CTests; production static analysis and PE checks passed. Visible/physical qualification remains outstanding; see implementation record."
+    },
+    {
+      "id": "F05",
+      "title": "Per-display temporary keep-awake leases",
+      "category": "automation",
+      "tags": [
+        "daily-use",
+        "multi-monitor",
+        "timers"
+      ],
+      "status": "implemented",
+      "sources": [
+        "AW"
+      ],
+      "local": [
+        "src/policy.hpp:Controller::Snooze",
+        "src/platform.hpp:Menu",
+        "src/policy.hpp:Controller::Inhibitor"
+      ],
+      "usefulness": 9,
+      "fit": 10,
+      "effort": 4,
+      "risk": 4,
+      "phase": "1",
+      "dependencies": [],
+      "value": "Lets one screen stay available for a meeting while unused peers continue protecting themselves.",
+      "gap": "Visible accessibility, mixed-DPI, real session/topology and physical display qualification remain outstanding; see docs/FEATURE_IMPLEMENTATION.md.",
+      "implementation": [
+        "Add runtime leases with stable target sets, monotonic deadlines and explicit cancel controls; keep them separate from persisted monitor enablement.",
+        "Treat an absolute local expiry as an input resolved to a deadline with stated clock-change behavior. On expiry establish fresh idle boundaries only for affected nodes.",
+        "Show active leases in explanations and the flyout; session exit clears them. This inhibits DAC activation and does not by itself inhibit Windows sleep."
+      ],
+      "acceptance": [
+        "A lease for A neither wakes nor resets B, including under shared/media policies.",
+        "Expiry, cancellation, suspend/resume and clock changes follow documented rules.",
+        "Imported configurations cannot silently create runtime leases."
+      ],
+      "popularity": 4,
+      "priority": 8.3,
+      "evidence_kind": "adapted-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 3,
+      "research_rank": 4,
+      "roadmap_status": "implemented-awaiting-visible-qualification",
+      "research_gap": "Current snooze is global with fixed tray durations. Per-target leases, custom durations and an absolute expiry are missing.",
+      "implementation_record": "docs/FEATURE_IMPLEMENTATION.md",
+      "implemented_date": "2026-10-16",
+      "verification": "Release and Debug each passed 28/28 isolated CTests; production static analysis and PE checks passed. Visible/physical qualification remains outstanding; see implementation record."
+    },
+    {
+      "id": "F16",
+      "title": "Display capability inspector and rescan report",
+      "category": "diagnostics",
+      "tags": [
+        "support",
+        "multi-monitor",
+        "ddc"
+      ],
+      "status": "partial",
+      "sources": [
+        "MO",
+        "LB"
+      ],
+      "local": [
+        "src/inspector.hpp",
+        "src/display-snapshot.hpp",
+        "src/platform.hpp:Catalog",
+        "src/platform.hpp:DiagnosticText"
+      ],
+      "usefulness": 8,
+      "fit": 10,
+      "effort": 5,
+      "risk": 6,
+      "phase": "2",
+      "dependencies": [],
+      "value": "Explains why a target is ineligible or quarantined and prepares hardware expansion without guesswork.",
+      "gap": "Read-only cached inspector, explicit OS-only rescan and redacted report implemented. New physical DDC/capability probing remains deferred; no supported compatibility claim. Visible/physical qualification pending.",
+      "implementation": [
+        "Cached read-only inspector with OS identity/connection/geometry/eligibility, policy/deadlines, separate saved hardware permission and observed state, fault/recovery freshness.",
+        "Coalesced asynchronous OS-only rescan; epoch rejection, unchanged-topology preservation, failed/partial-read stale retention and redacted summary.",
+        "New live physical DDC probing and capability-string reads remain deferred; no compatibility support inferred from saved grants or synthetic tests."
+      ],
+      "acceptance": [
+        "Opening diagnostics never sends DDC commands.",
+        "Canceled, hung and malformed capability responses are bounded and shown as unknown rather than supported.",
+        "Reconnect invalidates the right cache; clone targets and quarantine cannot become eligible through rescan."
+      ],
+      "popularity": 6,
+      "priority": 7.9,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 4,
+      "research_rank": 5,
+      "roadmap_status": "read-only-inspector-implemented-live-DDC-probe-deferred",
+      "research_gap": "Catalog refresh, faults and redacted diagnostics exist; there is no structured user-facing capability/probe view.",
+      "implementation_record": "docs/INSPECTOR_MAP_BACKGROUND.md",
+      "implemented_date": "2026-10-16",
+      "verification": "Final Release 29/29 (102.54 s), Debug 29/29 (109.21 s), 117665 policy assertions each; zero production analyzer findings; both PE checks and diff check passed. Private/hidden fixtures only; see docs/INSPECTOR_MAP_BACKGROUND.md and evidence/inspector-map-background-20261016/verification.json.",
+      "research_implementation": [
+        "First expose cached topology, identity eligibility, fault state and observation age without issuing hardware queries.",
+        "Add a separate explicit capability probe on the contained worker/helper path; cache by device/connection epoch and preserve unknown/timeout states.",
+        "Offer a redacted summary by default and an explicit identifiable local export for support. Read queries can still stall a driver."
+      ]
+    },
+    {
+      "id": "F04",
+      "title": "Visual display map for target selection",
+      "category": "usability",
+      "tags": [
+        "multi-monitor",
+        "onboarding",
+        "visibility"
+      ],
+      "status": "implemented",
+      "sources": [
+        "LB"
+      ],
+      "local": [
+        "src/display-map.hpp",
+        "src/display-snapshot.hpp",
+        "tests/display-map-fixture.hpp"
+      ],
+      "usefulness": 8,
+      "fit": 10,
+      "effort": 5,
+      "risk": 3,
+      "phase": "1",
+      "dependencies": [],
+      "value": "Helps users choose the correct physical screen before changing a presentation or policy.",
+      "gap": "Native desktop-pixel spatial map, stable selection, parallel native keyboard list and guarded controls/settings/inspector navigation implemented. Visible accessibility and actual mixed-DPI/topology qualification pending.",
+      "implementation": [
+        "Native aspect-preserving desktop-pixel rectangles and parallel keyboard list, stable-ID selection, textual legend/status, guarded settings/controls/inspector navigation.",
+        "Theme/high-contrast, DPI and focus retention implemented; real visible/topology qualification remains separate."
+      ],
+      "acceptance": [
+        "Fixtures cover mixed DPI, portrait layouts, negative coordinates and clone targets.",
+        "Selection remains attached to identity across reordering; stale map actions are rejected.",
+        "Visible acceptance confirms that labels and keyboard focus match physical displays."
+      ],
+      "popularity": 5,
+      "priority": 7.8,
+      "evidence_kind": "adapted-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 5,
+      "research_rank": 6,
+      "roadmap_status": "implemented-awaiting-visible-qualification",
+      "research_gap": "DAC provides a dropdown and identify overlays, but no spatial map of the current desktop.",
+      "implementation_record": "docs/INSPECTOR_MAP_BACKGROUND.md",
+      "implemented_date": "2026-10-16",
+      "verification": "Final Release 29/29 (102.54 s), Debug 29/29 (109.21 s), 117665 policy assertions each; zero production analyzer findings; both PE checks and diff check passed. Private/hidden fixtures only; see docs/INSPECTOR_MAP_BACKGROUND.md and evidence/inspector-map-background-20261016/verification.json.",
+      "research_implementation": [
+        "Render scaled rectangles from the catalog with names, enabled state and a selected target; provide a parallel accessible list.",
+        "Use signed coordinates and preserve aspect ratios across rotated and negative-coordinate outputs. Mark clone/unknown targets as ineligible.",
+        "Keep this map read-only with respect to Windows layout; opening it must not activate presentations."
+      ]
+    },
+    {
+      "id": "F11",
+      "title": "Rules for background running applications",
+      "category": "activity",
+      "tags": [
+        "automation",
+        "media",
+        "rules"
+      ],
+      "status": "implemented",
+      "sources": [
+        "LI"
+      ],
+      "local": [
+        "src/background-policy.hpp",
+        "src/background-process.hpp",
+        "src/background-settings.hpp",
+        "src/policy.hpp:Controller"
+      ],
+      "usefulness": 8,
+      "fit": 9,
+      "effort": 6,
+      "risk": 5,
+      "phase": "2",
+      "dependencies": [],
+      "value": "Supports long tasks or applications that should inhibit protection even after losing focus.",
+      "gap": "Persistent schema5 running-application rules, explicit stable/global scopes, bounded user/session process worker, limited uncertain grace and native draft settings implemented. Real session/application qualification pending.",
+      "implementation": [
+        "Schema5 persistent enabled full-path or explicit filename rules with stable-target/global scope; native draft editor and profile transfers.",
+        "One-Hz bounded current-user/session executable observation, live owned-job exclusion, epoch rejection, per-rule Present/Absent/Unknown and at most five seconds prior-positive grace.",
+        "Targeted boundaries preserve independent peers/inhibitors; imports disarm automation/hardware and diagnostics omit application identities."
+      ],
+      "acceptance": [
+        "Foreground-only rules keep existing semantics; process rules cannot accidentally become global.",
+        "Stale/denied process observations, exited tasks and owned saver processes behave predictably.",
+        "Measure scan overhead with many processes and confirm no UI/input-path blocking."
+      ],
+      "popularity": 6,
+      "priority": 7.6,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 6,
+      "research_rank": 7,
+      "roadmap_status": "implemented-awaiting-visible-qualification",
+      "research_gap": "Rules currently match foreground apps or ignore audio; they do not match a bounded snapshot of background processes.",
+      "implementation_record": "docs/INSPECTOR_MAP_BACKGROUND.md",
+      "implemented_date": "2026-10-16",
+      "verification": "Final Release 29/29 (102.54 s), Debug 29/29 (109.21 s), 117665 policy assertions each; zero production analyzer findings; both PE checks and diff check passed. Private/hidden fixtures only; see docs/INSPECTOR_MAP_BACKGROUND.md and evidence/inspector-map-background-20261016/verification.json.",
+      "research_implementation": [
+        "Add a distinct running-process rule kind; scan on a worker at a bounded interval and match full paths by default.",
+        "Require explicit global or selected-monitor scope because a background process has no reliable foreground display.",
+        "Publish timestamped observations with a stale-state policy and explain which rule blocks a target without logging paths by default."
+      ]
+    },
+    {
+      "id": "F06",
+      "title": "Process-bound temporary keep-awake leases",
+      "category": "automation",
+      "tags": [
+        "integration",
+        "process-lifetime",
+        "timers"
+      ],
+      "status": "missing",
+      "sources": [
+        "AW"
+      ],
+      "local": [
+        "src/policy.hpp:AppRule",
+        "src/platform.hpp:ProcessIdentity",
+        "src/policy.hpp:Controller::Inhibitor"
+      ],
+      "usefulness": 8,
+      "fit": 9,
+      "effort": 6,
+      "risk": 5,
+      "phase": "2",
+      "dependencies": [
+        "F05"
+      ],
+      "value": "Keeps selected displays available while a specific task runs and removes the exception automatically when it ends.",
+      "gap": "Foreground executable rules exist; there is no explicit temporary lease attached to one live process instance.",
+      "implementation": [
+        "Bind a lease to a retained process handle and creation identity, with a maximum timeout and an explicit target set.",
+        "Observe process exit away from the input path, then enqueue lease removal on the UI thread. A reused PID must never inherit the lease.",
+        "Use a native process picker for the current roadmap; expose access-denied and exited-process outcomes without widening scope. A CLI option can be reconsidered only if F01 is restored."
+      ],
+      "acceptance": [
+        "Process exit, crash, PID reuse and denied handle access cannot leave an indefinite inhibitor.",
+        "Only selected monitors receive a new idle boundary on lease removal.",
+        "Owned DAC saver/helper processes cannot create recursive self-inhibition."
+      ],
+      "popularity": 4,
+      "priority": 7.3,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 7,
+      "research_rank": 8,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F08",
+      "title": "Weekday schedules and date exceptions",
+      "category": "automation",
+      "tags": [
+        "calendar",
+        "daily-use",
+        "dac-extension"
+      ],
+      "status": "partial",
+      "sources": [],
+      "local": [
+        "src/policy.hpp:Profile",
+        "src/policy.hpp:InSchedule",
+        "src/policy.hpp:ResolveProfile",
+        "src/platform.hpp:WorkspaceProc"
+      ],
+      "usefulness": 8,
+      "fit": 10,
+      "effort": 4,
+      "risk": 4,
+      "phase": "1",
+      "dependencies": [],
+      "value": "Allows different weekday/weekend routines without editing daily profiles.",
+      "gap": "Profiles support daily HH:MM windows, including overnight periods, but no weekdays or explicit date exclusions. This is a DAC-specific extension, not an observed donor feature.",
+      "implementation": [
+        "Introduce a weekday mask and bounded local-date exception list with a schema migration preserving existing every-day behavior.",
+        "Define an overnight interval as owned by its starting day. Keep manual > foreground-app > scheduled > base precedence and show why a profile won.",
+        "Use an injected civil clock to reevaluate DST, timezone changes and resume; avoid replaying missed activations."
+      ],
+      "acceptance": [
+        "Test Friday-to-Saturday overnight, exclusive ends, DST gaps/repeats and overlapping profiles.",
+        "Old settings retain their meaning; import continues to disarm automatic and hardware authority.",
+        "The schedule editor previews the next matching interval and reports conflicts deterministically."
+      ],
+      "popularity": 1,
+      "priority": 7.3,
+      "evidence_kind": "dac-inference",
+      "estimate_engineer_days": "5-10",
+      "rank": 8,
+      "research_rank": 9,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F23",
+      "title": "Localization infrastructure and translated UI",
+      "category": "usability",
+      "tags": [
+        "accessibility",
+        "international",
+        "native"
+      ],
+      "status": "missing",
+      "sources": [
+        "TW",
+        "MO",
+        "LI",
+        "AD"
+      ],
+      "local": [
+        "src/platform.hpp:ShowSetup",
+        "src/platform.hpp:ShowSettings",
+        "src/platform.hpp:ReasonText",
+        "resources/dac.rc"
+      ],
+      "usefulness": 7,
+      "fit": 9,
+      "effort": 7,
+      "risk": 3,
+      "phase": "2",
+      "dependencies": [
+        "G02"
+      ],
+      "value": "Makes setup and recovery understandable to a broader audience.",
+      "gap": "UI strings are predominantly inline English and the resources declare an English version-information language.",
+      "implementation": [
+        "Extract strings into stable resource IDs, keep persisted enums/keys language-neutral and retain English fallback.",
+        "Start with one pilot locale and longer-string pseudo-localization; use locale-aware date/time formatting and inspect native layout sizing.",
+        "Keep diagnostics machine fields stable and resource updates separately reviewable; plan RTL support explicitly rather than assuming it."
+      ],
+      "acceptance": [
+        "Missing translations fall back without losing emergency/recovery text.",
+        "Long strings, Unicode, keyboard accelerators and 100-200% DPI do not clip controls.",
+        "Configuration roundtrips unchanged across language selection and translated UI remains accessible."
+      ],
+      "popularity": 8,
+      "priority": 7.3,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "11-20",
+      "rank": 9,
+      "research_rank": 10,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F13",
+      "title": "Actual monitor brightness control",
+      "category": "hardware",
+      "tags": [
+        "optional",
+        "ddc",
+        "brightness"
+      ],
+      "status": "missing",
+      "sources": [
+        "TW",
+        "MO",
+        "LB"
+      ],
+      "local": [
+        "src/platform.hpp:PowerChild",
+        "src/platform.hpp:PowerGuardian",
+        "src/policy.hpp:Preference"
+      ],
+      "usefulness": 8,
+      "fit": 7,
+      "effort": 8,
+      "risk": 9,
+      "phase": "3",
+      "dependencies": [
+        "F16",
+        "G03"
+      ],
+      "value": "Adds true brightness reduction before covering a monitor and manual adjustment from DAC.",
+      "gap": "Dim is software overlay opacity; current DDC support implements power off/wake only, not brightness.",
+      "implementation": [
+        "Introduce a separate brightness grant and capability model, independent of the current hardware-power flag. Use DDC for eligible external monitors and investigate WMI for built-in panels.",
+        "Extend a separately contained helper protocol with typed brightness operations, rate limits, cancellation and bounded target identity validation.",
+        "Record prior value and the last applied value. Restore only if DAC still owns that value, so another controller or the user is not overwritten."
+      ],
+      "acceptance": [
+        "Simulation covers timeout, wrong target, permission revocation, concurrent controllers and restoration conflicts.",
+        "Physical checks cover exact monitor/adapter combinations with recovery available.",
+        "Never describe overlay dimming as hardware brightness or infer energy savings from a percentage."
+      ],
+      "popularity": 7,
+      "priority": 7.2,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "11-20",
+      "rank": 10,
+      "research_rank": 11,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F10",
+      "title": "Battery and AC profile triggers",
+      "category": "automation",
+      "tags": [
+        "power",
+        "laptop",
+        "profiles"
+      ],
+      "status": "partial",
+      "sources": [
+        "AD"
+      ],
+      "local": [
+        "src/policy.hpp:PowerSource",
+        "src/policy.hpp:Controller::Presentation",
+        "src/policy.hpp:ResolveProfile",
+        "src/platform.hpp:ReadPowerSource"
+      ],
+      "usefulness": 7,
+      "fit": 9,
+      "effort": 4,
+      "risk": 4,
+      "phase": "2",
+      "dependencies": [],
+      "value": "Changes complete protection policies when a laptop moves between power sources.",
+      "gap": "The existing batteryBlack flag changes expensive content to black; it cannot select a full battery-specific profile.",
+      "implementation": [
+        "Add an explicit AC/DC trigger to profiles and document where it sits relative to app and scheduled matches.",
+        "Reuse the existing power-source adapter and debounce; Unknown must preserve a conservative, explainable policy.",
+        "Continue applying base hardware grants and enablement caps after profile selection."
+      ],
+      "acceptance": [
+        "Rapid source changes and Unknown readings do not thrash ownership or enable DDC.",
+        "Manual profiles retain precedence and old batteryBlack behavior remains available.",
+        "Injected AC/DC transitions and visible laptop resume tests agree."
+      ],
+      "popularity": 5,
+      "priority": 7.1,
+      "evidence_kind": "adapted-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 11,
+      "research_rank": 12,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F24",
+      "title": "Package manager distribution",
+      "category": "delivery",
+      "tags": [
+        "adoption",
+        "installation",
+        "optional"
+      ],
+      "status": "missing",
+      "sources": [
+        "TW",
+        "AD"
+      ],
+      "local": [
+        "tools/package.ps1",
+        "tools/verify-package.ps1",
+        "docs/GITHUB_INTEGRATION.md",
+        "resources/dac.rc"
+      ],
+      "usefulness": 7,
+      "fit": 8,
+      "effort": 5,
+      "risk": 5,
+      "phase": "4",
+      "dependencies": [
+        "G04",
+        "G01"
+      ],
+      "value": "Makes finding, installing and updating qualified releases easier.",
+      "gap": "DAC has a verified local portable ZIP workflow, but no maintained public package-manager manifest.",
+      "implementation": [
+        "After a qualified signed release exists, prepare a versioned WinGet or Scoop manifest tied to immutable artifact hashes.",
+        "Define portable extraction, user data retention, startup path handling and update/uninstall behavior before publishing.",
+        "Validate manifests locally; package-manager submission and release publication remain separate delivery actions."
+      ],
+      "acceptance": [
+        "Clean-machine install/update/remove preserve preferences and never enable startup or DDC implicitly.",
+        "Every manifest references the expected architecture, version and verified artifact hash.",
+        "Moving the executable cannot leave an unnoticed stale login entry."
+      ],
+      "popularity": 6,
+      "priority": 7,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 12,
+      "research_rank": 13,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F12",
+      "title": "Coverage-aware application inhibition",
+      "category": "activity",
+      "tags": [
+        "fullscreen",
+        "gaming",
+        "heuristics"
+      ],
+      "status": "partial",
+      "sources": [
+        "LI"
+      ],
+      "local": [
+        "src/platform.hpp:ObserveForeground",
+        "src/platform.hpp:ForegroundDisplays",
+        "src/policy.hpp:Controller::Inhibitor"
+      ],
+      "usefulness": 7,
+      "fit": 8,
+      "effort": 7,
+      "risk": 6,
+      "phase": "2",
+      "dependencies": [],
+      "value": "Reduces false activation when several visible windows collectively cover a monitor.",
+      "gap": "Foreground/fullscreen overlap exists; DAC does not calculate collective visible coverage as an optional inhibitor.",
+      "implementation": [
+        "Prototype bounded window coverage on a worker with a configurable threshold and hysteresis; start with opaque ordinary windows.",
+        "Exclude DAC-owned covers and previews, hidden/cloaked/minimized windows and irrelevant desktops. Keep the current simple policy as default.",
+        "Present the result as a heuristic; uncertainty must not invent precise media or tab attribution."
+      ],
+      "acceptance": [
+        "Fixtures cover tiled windows, overlays, transparent windows, moving windows and multiple outputs.",
+        "A covered A does not inhibit B; DAC's own cover cannot sustain its own inhibitor.",
+        "Visible gaming tests check exclusive/fullscreen behavior and CPU cost before enabling by default."
+      ],
+      "popularity": 6,
+      "priority": 6.8,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "11-20",
+      "rank": 13,
+      "research_rank": 14,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F07",
+      "title": "Keep Windows awake while DAC manages displays",
+      "category": "power",
+      "tags": [
+        "optional",
+        "system-power",
+        "integration"
+      ],
+      "status": "missing",
+      "sources": [
+        "AW"
+      ],
+      "local": [
+        "src/platform.hpp:ObserveMedia",
+        "src/platform.hpp:SetBlocked",
+        "src/platform.hpp:Shutdown"
+      ],
+      "usefulness": 7,
+      "fit": 7,
+      "effort": 6,
+      "risk": 6,
+      "phase": "4",
+      "dependencies": [
+        "F05"
+      ],
+      "value": "Supports downloads or compute jobs while DAC continues using black or other presentations on idle screens.",
+      "gap": "DAC observes display requests but does not create a user-requested system keep-awake lifetime.",
+      "implementation": [
+        "Add a separate opt-in system-power lease using a Windows power request with a visible reason and clear/close ownership on every exit path.",
+        "Default to a system-only request. Any screen-on request is global Windows behavior and must be labeled separately from DAC per-display inhibition.",
+        "Respect explicit sleep/session policy and document Modern Standby and DC limitations; do not modify persistent power plans."
+      ],
+      "acceptance": [
+        "Injected API failures and every cancellation path release request ownership.",
+        "Windows sleep, lock and battery behavior are checked in an isolated visible session.",
+        "The UI never implies that Windows display requests provide per-monitor power authority."
+      ],
+      "popularity": 4,
+      "priority": 6.4,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 14,
+      "research_rank": 15,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F15",
+      "title": "Scheduled and idle hardware brightness stages",
+      "category": "hardware",
+      "tags": [
+        "optional",
+        "automation",
+        "brightness"
+      ],
+      "status": "partial",
+      "sources": [
+        "TW"
+      ],
+      "local": [
+        "src/policy.hpp:Controller::Tick",
+        "src/policy.hpp:DimAlpha",
+        "src/policy.hpp:ResolveProfile"
+      ],
+      "usefulness": 6,
+      "fit": 7,
+      "effort": 6,
+      "risk": 8,
+      "phase": "3",
+      "dependencies": [
+        "F13",
+        "F08"
+      ],
+      "value": "Can reduce brightness gradually before native black or select different brightness targets by time.",
+      "gap": "DAC has dim/fade and timed black/power stages; those stages do not drive hardware brightness.",
+      "implementation": [
+        "Model brightness as a separately owned stage with explicit entry, cancellation and restoration rules. Coalesce intermediate values to limit DDC traffic.",
+        "Reuse profile scheduling and never let schedules grant hardware authority.",
+        "Resolve manual brightness, time profile and idle-stage precedence explicitly; topology/session transitions invalidate pending writes."
+      ],
+      "acceptance": [
+        "Input during a ramp cancels stale operations and restores only owned values.",
+        "Schedule overlap, wake and helper timeout do not repeat writes indefinitely.",
+        "Physical acceptance measures actual responsiveness separately from synthetic timing."
+      ],
+      "popularity": 5,
+      "priority": 6,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 15,
+      "research_rank": 16,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F22",
+      "title": "Explicit Windows workstation lock action",
+      "category": "security",
+      "tags": [
+        "optional",
+        "windows",
+        "dac-adaptation"
+      ],
+      "status": "unsupported-by-design",
+      "sources": [
+        "SB"
+      ],
+      "local": [
+        "src/platform.hpp:SetBlocked",
+        "src/platform.hpp:WindowProc",
+        "src/platform.hpp:Menu"
+      ],
+      "usefulness": 7,
+      "fit": 6,
+      "effort": 4,
+      "risk": 6,
+      "phase": "4",
+      "dependencies": [
+        "G01"
+      ],
+      "value": "Offers an unambiguous security action for users who might otherwise confuse black presentations with locking.",
+      "gap": "DAC deliberately does not lock Windows. ScreenBlind's password overlay motivates this adaptation, but is not evidence of secure workstation locking.",
+      "implementation": [
+        "Add a clearly named explicit Lock Windows command using the OS lock API; the first version should be manual only.",
+        "Retire/hide owned presentations and let existing session notifications handle lock/unlock. Check the asynchronous result through session state.",
+        "Defer automatic locking until whole-session idle semantics are specified; never lock solely because one secondary display is idle."
+      ],
+      "acceptance": [
+        "An API fixture verifies request handling without locking the operator's session.",
+        "Visible tests in an isolated session confirm lock/unlock and cover cleanup.",
+        "No DAC password database, cursor trapping or claim of per-monitor OS locking is introduced."
+      ],
+      "popularity": 1,
+      "priority": 5.9,
+      "evidence_kind": "adapted-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 16,
+      "research_rank": 17,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F14",
+      "title": "Brightness calibration and synchronized groups",
+      "category": "hardware",
+      "tags": [
+        "optional",
+        "multi-monitor",
+        "brightness"
+      ],
+      "status": "missing",
+      "sources": [
+        "TW",
+        "MO"
+      ],
+      "local": [
+        "src/policy.hpp:Preference",
+        "src/platform.hpp:Catalog"
+      ],
+      "usefulness": 6,
+      "fit": 6,
+      "effort": 6,
+      "risk": 7,
+      "phase": "3",
+      "dependencies": [
+        "F13"
+      ],
+      "value": "Makes one user-facing brightness adjustment behave more consistently across unlike panels.",
+      "gap": "DAC has no hardware brightness ranges, calibration curves or linked adjustment groups.",
+      "implementation": [
+        "Store per-target user min/max and a monotonic normalized mapping; retain native values for diagnostics only with user choice.",
+        "Apply a group intent as independent bounded requests. Report partial success without claiming an atomic physical update.",
+        "Let users adjust perceived equality; avoid presenting percentage matching as measured luminance calibration."
+      ],
+      "acceptance": [
+        "Mappings are monotonic and clamped; invalid ranges cannot send out-of-range values.",
+        "A disconnected or failed group member does not redirect changes to another display.",
+        "Restoration ownership and explicit grants remain per device."
+      ],
+      "popularity": 6,
+      "priority": 5.9,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 17,
+      "research_rank": 18,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F25",
+      "title": "Opt-in update notifications",
+      "category": "delivery",
+      "tags": [
+        "optional",
+        "network",
+        "maintenance"
+      ],
+      "status": "missing",
+      "sources": [
+        "AD"
+      ],
+      "local": [
+        "src/standalone.cpp:Main",
+        "src/platform.hpp:Maintain",
+        "docs/SECURITY.md"
+      ],
+      "usefulness": 6,
+      "fit": 5,
+      "effort": 6,
+      "risk": 6,
+      "phase": "4",
+      "dependencies": [
+        "G04",
+        "F24"
+      ],
+      "value": "Helps users notice fixes once qualified releases exist.",
+      "gap": "DAC is offline and has no updater; this is a deliberate change to its product contract.",
+      "implementation": [
+        "Prefer package-manager updates first. If demand remains, add manual or opt-in metadata checks in a worker with a timeout and no device/configuration upload.",
+        "Show a release link and verified version information; avoid self-replacement while presentations or helpers are active.",
+        "Keep offline launches fast and default behavior unchanged. A full automatic updater requires a separate rollback/signature design."
+      ],
+      "acceptance": [
+        "Offline, malformed metadata, proxy failure and version rollback responses cannot block startup.",
+        "Disabled checking produces no network requests.",
+        "A notification cannot execute downloaded code or mutate hardware/startup permissions."
+      ],
+      "popularity": 5,
+      "priority": 5.6,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 18,
+      "research_rank": 19,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F09",
+      "title": "Sunrise and sunset profile triggers",
+      "category": "automation",
+      "tags": [
+        "optional",
+        "offline",
+        "calendar"
+      ],
+      "status": "missing",
+      "sources": [
+        "AD"
+      ],
+      "local": [
+        "src/policy.hpp:Profile",
+        "src/policy.hpp:ResolveProfile",
+        "src/platform.hpp:ShowWorkspace"
+      ],
+      "usefulness": 5,
+      "fit": 7,
+      "effort": 6,
+      "risk": 4,
+      "phase": "4",
+      "dependencies": [
+        "F08"
+      ],
+      "value": "Can align presentation and timeout preferences with daylight without daily manual adjustment.",
+      "gap": "DAC has fixed local times only; it has no solar calculation or location setting.",
+      "implementation": [
+        "Use a deterministic local solar calculation with manually supplied approximate coordinates and offsets; avoid a mandatory location/network service.",
+        "Represent polar-day/no-event outcomes explicitly, use timezone-aware civil dates and offer a fixed-time fallback.",
+        "Do not add geolocation to exported diagnostics. Keep solar triggers below manual/application precedence."
+      ],
+      "acceptance": [
+        "Reference vectors cover hemispheres, DST and polar cases.",
+        "Missing coordinates or an unavailable event produces a visible fallback instead of an arbitrary activation.",
+        "Offline operation and configuration disarming remain intact."
+      ],
+      "popularity": 5,
+      "priority": 5.4,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 19,
+      "research_rank": 20,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F20",
+      "title": "Additional configurable native scenes",
+      "category": "presentations",
+      "tags": [
+        "optional",
+        "native",
+        "content"
+      ],
+      "status": "partial",
+      "sources": [
+        "SB"
+      ],
+      "local": [
+        "src/platform.hpp:PaintScene",
+        "src/policy.hpp:Preference",
+        "src/platform.hpp:StartDraftPreview"
+      ],
+      "usefulness": 5,
+      "fit": 8,
+      "effort": 5,
+      "risk": 3,
+      "phase": "4",
+      "dependencies": [],
+      "value": "Adds variety at lower runtime cost than embedding a browser or video engine.",
+      "gap": "DAC already has moving clock, constellation, themes and rotation; new scene types and per-scene density/speed/clock format are missing.",
+      "implementation": [
+        "Add one low-luminance native scene and bounded speed/density/clock-format options rather than an executable plugin system.",
+        "Reuse draft preview, scene deadlines, palettes and battery fallback. Keep motion independent of media/input attribution.",
+        "Validate each parameter and use a deterministic test clock/random seed for rendering fixtures."
+      ],
+      "acceptance": [
+        "Worst-case settings stay within measured paint/resource budgets.",
+        "Input dismisses the new scene through the existing path; low-power and black transitions still work.",
+        "Visible acceptance checks high contrast settings UI, mixed DPI and repeated static elements."
+      ],
+      "popularity": 1,
+      "priority": 5.1,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 20,
+      "research_rank": 21,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F27",
+      "title": "Runtime accent selection",
+      "category": "appearance",
+      "tags": [
+        "optional",
+        "native",
+        "fujin"
+      ],
+      "status": "partial",
+      "sources": [
+        "AD"
+      ],
+      "local": [
+        "cmake/Fujin.cmake",
+        "tools/generate-theme.ps1",
+        "src/platform.hpp:RefreshSettingsTheme",
+        "src/policy.hpp:IntegrationSettings"
+      ],
+      "usefulness": 4,
+      "fit": 7,
+      "effort": 4,
+      "risk": 2,
+      "phase": "4",
+      "dependencies": [],
+      "value": "Lets users personalize the settings UI without rebuilding DAC.",
+      "gap": "System/light/dark and high contrast exist; seven Fujin accent presets are build-time choices only.",
+      "implementation": [
+        "Generate an allowlisted table of all pinned Fujin palettes at build time and choose an index in host preferences.",
+        "Refresh existing controls in place while preserving drafts/focus. High contrast must continue to override custom palettes.",
+        "Do not change low-luminance scene colors when a settings accent changes."
+      ],
+      "acceptance": [
+        "Each generated palette passes integrity validation and contrast review.",
+        "Old host preferences migrate to the current default; unknown accent values fail safely.",
+        "Changing accents retains drafts, focus and high-contrast behavior."
+      ],
+      "popularity": 5,
+      "priority": 5.1,
+      "evidence_kind": "adapted-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 21,
+      "research_rank": 22,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F17",
+      "title": "HDR awareness and SDR content brightness investigation",
+      "category": "hardware",
+      "tags": [
+        "optional",
+        "hdr",
+        "research"
+      ],
+      "status": "missing",
+      "sources": [
+        "MO"
+      ],
+      "local": [
+        "src/platform.hpp:Catalog",
+        "src/platform.hpp:PaintScene",
+        "resources/dac.manifest"
+      ],
+      "usefulness": 5,
+      "fit": 6,
+      "effort": 8,
+      "risk": 8,
+      "phase": "4",
+      "dependencies": [
+        "F16",
+        "G01"
+      ],
+      "value": "Makes display state clearer and could improve appearance consistency on HDR desktops.",
+      "gap": "Physical HDR appearance is unqualified, and DAC has no HDR capability status or SDR content brightness setting.",
+      "implementation": [
+        "Start with read-only HDR state and visible qualification of black/scenes/slides; keep that deliverable independent of a brightness setter.",
+        "Investigate a supported SDR brightness setter for the pinned SDK/OS baseline. Monitorian's product history establishes the feature, not API suitability for DAC.",
+        "If only undocumented operations are available, retain read-only status and defer writing. Keep hardware brightness, SDR content brightness and overlay opacity distinct."
+      ],
+      "acceptance": [
+        "HDR state changes invalidate cached presentation assumptions safely.",
+        "A prototype must establish API support, restoration and exact-target behavior before any setter is scheduled.",
+        "Document visible black-level/clock results on representative HDR and SDR displays."
+      ],
+      "popularity": 4,
+      "priority": 4.9,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "11-20",
+      "rank": 22,
+      "research_rank": 23,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F19",
+      "title": "Local video and animated media presentations",
+      "category": "presentations",
+      "tags": [
+        "optional",
+        "media",
+        "content"
+      ],
+      "status": "missing",
+      "sources": [
+        "LI"
+      ],
+      "local": [
+        "src/platform.hpp:Run",
+        "src/platform.hpp:SlideFrame",
+        "src/platform.hpp:SlideWorker",
+        "src/platform.hpp:AddRun"
+      ],
+      "usefulness": 5,
+      "fit": 5,
+      "effort": 9,
+      "risk": 7,
+      "phase": "4",
+      "dependencies": [
+        "G05"
+      ],
+      "value": "Adds visual variety for users who prefer moving content to black or the existing scenes.",
+      "gap": "Photo extensions include GIF, but SlideFrame decodes one image frame; there is no timed animated GIF/video playback pipeline.",
+      "implementation": [
+        "Prototype a local-only media owner in a contained process using a Windows media pipeline, with bounded files and no browser/URL support.",
+        "Mute by default, enforce resource/frame limits, obey batteryBlack and the existing timed-to-black policy, and cancel by generation.",
+        "Fall back to native black on decoder/device failure. Preserve instant hide/cancel before asynchronous cleanup."
+      ],
+      "acceptance": [
+        "Malformed media, decoder hangs, device loss and rapid input cannot strand a cover or helper.",
+        "Measure CPU/GPU/memory and dismissal responsiveness against native black and scenes.",
+        "Confirm each output retains independent ownership; no burn-in effectiveness claim follows from motion."
+      ],
+      "popularity": 6,
+      "priority": 4.9,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "21-40",
+      "rank": 23,
+      "research_rank": 24,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F18",
+      "title": "Monitor contrast controls",
+      "category": "hardware",
+      "tags": [
+        "optional",
+        "ddc",
+        "adjacent"
+      ],
+      "status": "missing",
+      "sources": [
+        "TW",
+        "MO"
+      ],
+      "local": [
+        "src/platform.hpp:PowerChild",
+        "src/policy.hpp:Preference"
+      ],
+      "usefulness": 4,
+      "fit": 4,
+      "effort": 6,
+      "risk": 8,
+      "phase": "4",
+      "dependencies": [
+        "F13"
+      ],
+      "value": "Offers a small convenience for users who already want DAC to act as a broader monitor controller.",
+      "gap": "DAC has neither contrast read/write nor generalized monitor settings.",
+      "implementation": [
+        "If the brightness foundation proves reliable, add a typed contrast operation with its own advertised capability and permission.",
+        "Keep raw arbitrary VCP writes out of ordinary controls; avoid adding input-source switching to this item because it can remove the recovery display.",
+        "Reuse normalization and ownership rules where applicable and provide a manual reset path."
+      ],
+      "acceptance": [
+        "Unsupported capabilities remain disabled and values are clamped to reported ranges.",
+        "Timeouts cannot block input dismissal or reuse a stale monitor handle.",
+        "Physical tests confirm recoverability without changing saved power grants."
+      ],
+      "popularity": 6,
+      "priority": 4.4,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "5-10",
+      "rank": 24,
+      "research_rank": 25,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F21",
+      "title": "Optional Windows screensaver bridge",
+      "category": "integration",
+      "tags": [
+        "optional",
+        "windows",
+        "screensaver"
+      ],
+      "status": "unsupported-by-design",
+      "sources": [
+        "LI"
+      ],
+      "local": [
+        "src/standalone.cpp:Main",
+        "src/platform.hpp:AddRun",
+        "src/platform.hpp:UserSessionScope"
+      ],
+      "usefulness": 4,
+      "fit": 4,
+      "effort": 8,
+      "risk": 6,
+      "phase": "4",
+      "dependencies": [
+        "F01",
+        "G01"
+      ],
+      "value": "Lets Windows launch DAC content for users who want an OS-managed screensaver entry.",
+      "gap": "Hosting other savers through /p exists; DAC itself is not a registered Windows screensaver.",
+      "implementation": [
+        "Treat this as a deliberate scope decision. Prototype a separate bridge handling /s, /p and /c with bounded IPC and no hardware grants.",
+        "Define who owns idle detection when Windows launches it and prevent duplicate controllers or recursion into the bridge.",
+        "Make registration and removal explicit and reversible; do not silently replace the user's existing screensaver policy."
+      ],
+      "acceptance": [
+        "Fixtures cover protocol parsing, parent-window lifetime and missing controller.",
+        "An isolated visible session confirms Windows invocation, stop behavior and restoration of prior settings.",
+        "Secure Windows lock behavior is tested separately and is never inferred from a cover."
+      ],
+      "popularity": 6,
+      "priority": 4.2,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "11-20",
+      "rank": 25,
+      "research_rank": 26,
+      "roadmap_status": "candidate"
+    },
+    {
+      "id": "F26",
+      "title": "Pointer border resistance and routing",
+      "category": "input",
+      "tags": [
+        "defer",
+        "coexistence",
+        "adjacent"
+      ],
+      "status": "missing",
+      "sources": [
+        "LB"
+      ],
+      "local": [
+        "src/platform.hpp:DeliverInput",
+        "src/policy.hpp:AttributeInput",
+        "tests/nativewake-input-fixture.h"
+      ],
+      "usefulness": 3,
+      "fit": 2,
+      "effort": 10,
+      "risk": 9,
+      "phase": "defer",
+      "dependencies": [
+        "G01"
+      ],
+      "value": "Could reduce accidental crossover into idle screens, but duplicates a specialist tool and adds input risk.",
+      "gap": "DAC observes input; it does not redirect or constrain the cursor.",
+      "implementation": [
+        "Prefer a documented coexistence recipe and compatibility tests with LittleBigMouse before considering a built-in router.",
+        "If a future fork explores routing, isolate it behind an opt-in adapter with a separate recovery shortcut and evaluate historical-event attribution.",
+        "Do not reuse current pointer position for queued events or let synthetic routing credit unrelated displays."
+      ],
+      "acceptance": [
+        "Coexistence tests cover high-rate input, boundary crossing, mixed DPI and all-covered wake.",
+        "Disabling routing restores normal cursor behavior immediately.",
+        "No input interception extension proceeds without proving that the core wake invariant and recovery remain reliable."
+      ],
+      "popularity": 5,
+      "priority": 2.9,
+      "evidence_kind": "observed-comparable",
+      "estimate_engineer_days": "21-40",
+      "rank": 26,
+      "research_rank": 27,
+      "roadmap_status": "candidate"
+    }
+  ],
+  "qualification_gates": [
+    {
+      "id": "G01",
+      "title": "Physical wake and topology qualification",
+      "usefulness": 10,
+      "effort": 7,
+      "risk": 9,
+      "phase": "0",
+      "dependencies": [],
+      "local": [
+        "docs/QUALIFICATION.md",
+        "tests/nativewake-negative.cpp",
+        "tests/host-lifecycle.cpp"
+      ],
+      "value": "Establishes whether the central per-monitor protection behavior works on real desktops.",
+      "implementation": [
+        "Run the existing qualification matrix in an isolated visible Windows session across one, two and three displays, all coverage states, queued/high-rate input, hot-plug, mixed DPI, HDR and resume.",
+        "Retain executable hash, redacted timing counters, exact topology and a repeatable all-covered failure recipe. Fix defects before expanding owner/input behavior."
+      ],
+      "acceptance": [
+        "Only the attributed independent target dismisses; peer generation/idle history stays intact.",
+        "Recovery is visibly reliable across repeated all-covered trials; unresolved failures remain recorded."
+      ]
+    },
+    {
+      "id": "G02",
+      "title": "Visible settings and accessibility acceptance",
+      "usefulness": 9,
+      "effort": 5,
+      "risk": 5,
+      "phase": "0",
+      "dependencies": [],
+      "local": [
+        "docs/QUALIFICATION.md",
+        "src/platform.hpp:LayoutSettings",
+        "tests/platform.cpp:ExerciseSettingsDpi"
+      ],
+      "value": "Verifies that existing settings and new controls can actually be read and operated.",
+      "implementation": [
+        "Check visible Edit painting, keyboard order, focus, screen-reader names, high contrast, light/dark and DPI changes.",
+        "Fix concrete failures using the current native controls before adding flyout/localization surfaces."
+      ],
+      "acceptance": [
+        "Setup and recovery can be completed by keyboard and screen reader.",
+        "No hidden snapshot is counted as visible UI acceptance."
+      ]
+    },
+    {
+      "id": "G03",
+      "title": "Monitor and adapter hardware qualification",
+      "usefulness": 9,
+      "effort": 8,
+      "risk": 10,
+      "phase": "0",
+      "dependencies": [
+        "G01"
+      ],
+      "local": [
+        "docs/QUALIFICATION.md",
+        "src/platform.hpp:PowerGuardian",
+        "tests/platform.cpp:PowerTests"
+      ],
+      "value": "Establishes the narrow hardware combinations on which power and later brightness features are recoverable.",
+      "implementation": [
+        "Use separately authorized, operator-present tests for exact monitor/cable/dock/GPU combinations with physical recovery.",
+        "Record off, cancel, wake, timeout and quarantine behavior; preserve uncertain recovery tickets and never widen an unsupported target."
+      ],
+      "acceptance": [
+        "Publish a qualified/unsupported/unknown matrix per operation and connection.",
+        "A successful simulated cycle is never substituted for physical wake evidence."
+      ]
+    },
+    {
+      "id": "G04",
+      "title": "Clean CI and trusted release preparation",
+      "usefulness": 9,
+      "effort": 6,
+      "risk": 6,
+      "phase": "0",
+      "dependencies": [],
+      "local": [
+        "CMakeLists.txt",
+        "tools/build.ps1",
+        "tools/verify-pe.ps1",
+        "tools/verify-package.ps1",
+        "docs/GITHUB_INTEGRATION.md"
+      ],
+      "value": "Makes delivered artifacts reproducible and reviewable outside the developer machine.",
+      "implementation": [
+        "Add clean Windows CI using pinned toolchain/Fujin inputs and the existing Release/Debug, static-analysis, PE and ZIP checks.",
+        "Keep runtime tests on private desktops without startup registration or DDC. Design signing and immutable release artifacts separately; verify a final signed artifact as well as unsigned reproducibility."
+      ],
+      "acceptance": [
+        "Clean CI reproduces the existing suites and retains exact source/tool identities.",
+        "Release version, resource version, archive root, manifest, signature and checksums agree."
+      ]
+    },
+    {
+      "id": "G05",
+      "title": "Real activity and endurance qualification",
+      "usefulness": 9,
+      "effort": 7,
+      "risk": 7,
+      "phase": "0",
+      "dependencies": [
+        "G01"
+      ],
+      "local": [
+        "docs/QUALIFICATION.md",
+        "src/platform.hpp:ObserveMedia",
+        "tests/platform.cpp:Sessions"
+      ],
+      "value": "Validates that common real applications and long sessions do not cause false suppression, missed wake or leaks.",
+      "implementation": [
+        "Exercise browsers/native media, mute, multiple endpoints, fullscreen games, actual controllers and AC/DC transitions, then run hours/days of desktop use.",
+        "Measure resource growth and dismissal responsiveness; retain content/codec failure results. Isolate decoder work before expanding untrusted media inputs."
+      ],
+      "acceptance": [
+        "Ambiguous media does not acquire unwarranted exact-tab attribution.",
+        "No sustained resource growth or stranded owned processes appears in representative runs; failures include reproducible evidence."
+      ]
+    }
+  ],
+  "roadmap_updated": "2026-10-16",
+  "roadmap_decisions": [
+    {
+      "feature_id": "F01",
+      "decision": "deferred-by-user",
+      "date": "2026-10-16",
+      "reason": "User marked the full command interface as a no for now; exclude it from current feature recommendations."
+    }
+  ],
+  "implementation_updated": "2026-10-16"
+}

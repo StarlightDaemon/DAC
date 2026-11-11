@@ -4,13 +4,16 @@
 using namespace dac;
 int checks=0;
 void Check(bool ok,const char* what) { ++checks; if(!ok) { fprintf(stderr,"FAIL %s\n",what); std::exit(1); } }
+#include "features-policy.hpp"
+#include "background-fixture.hpp"
+#include "inspector-background-policy.hpp"
 
 void NextPolicy() {
     std::string error;Config c,copy;auto original=Serialize(copy);
     for(auto text:{"# comment\ntimeout=17\nversion=2\nperInput=1\nmonitor.41=0,1\n","version=2\npolicy.41=0,1,-1,5,0,0,0\n"}){Check(Parse(text,c,error)&&c.sourceSchema==2&&c.monitors["A"].dim==0,"schema two migration retains disabled/local/stage defaults");}
     for(auto bad:{"ff","c080","e08080","f0808080","eda080","f4908080","e282","00"}){Check(!Parse(std::string("version=3\nmonitor.")+bad+"=0,1\n",copy,error),"decoded invalid UTF-8 rejected");Check(Serialize(copy)==original,"failed parse preserves prior output");}
     Check(ValidUtf8("\xf0\x9f\x8c\x99")&&ValidUtf8("\xce\xbb"),"valid astral/BMP UTF-8");
-    for(auto bad:{"version=4\n","version=2\nnext.41=1,1,1,0,0,5,0\n","version=2\npolicy.41=0,2,0,0,0,0,0\n","version=3\nmanualProfile=41\n","version=3\nrule.0=0|0|0|433a5c612e657865|\n"})Check(!Parse(bad,copy,error),"forward/malformed/dangling schema rejection");
+    for(auto bad:{"version=6\n","version=2\nnext.41=1,1,1,0,0,5,0\n","version=2\npolicy.41=0,2,0,0,0,0,0\n","version=3\nmanualProfile=41\n","version=3\nrule.0=0|0|0|433a5c612e657865|\n"})Check(!Parse(bad,copy,error),"forward/malformed/dangling schema rejection");
     c=Config{};Profile profile;profile.name="Work";profile.policy.timeout=1;profile.policy.monitors["A"].dim=999;c.profiles.push_back(profile);
     Check(Commit(copy,c,[](auto&){return true;})&&copy.profiles[0].policy.timeout==5&&copy.profiles[0].policy.monitors["A"].dim==100,"nested profile canonicalized in live commit");
     c.profiles.resize(9);Check(!Commit(copy,c,[](auto&){return true;}),"profile count/duplicate bound rejects before store");
@@ -112,7 +115,7 @@ void StandalonePreferences() {
     DisarmImportedConfig(full);
     Check(!full.automatic&&!full.monitors["A"].hardware&&!full.monitors["A"].powerAfter&&!full.profiles[0].policy.automatic&&!full.profiles[0].policy.monitors["A"].hardware,"full settings import never transfers activation authority");
     Check(full.rules.size()==1&&full.profiles[0].start==60&&full.profiles[0].end==120,"disarming retains imported rules and schedules");
-    for(bool setup:{false,true})for(int action=0;action<3;++action)for(int appearance=0;appearance<3;++appearance){
+    for(bool setup:{false,true})for(int action=0;action<4;++action)for(int appearance=0;appearance<3;++appearance){
         IntegrationSettings input{setup,action,appearance},output;
         Check(ParseIntegration(SerializeIntegration(input),output),"standalone host settings roundtrip");
         Check(output.startupSetup==setup&&output.trayAction==action&&output.appearance==appearance,"standalone host settings preserve values");
@@ -124,7 +127,7 @@ void StandalonePreferences() {
     }
 }
 int main() {
-    StandalonePreferences();
+    StandalonePreferences();FeaturePolicy();BackgroundPolicy();BackgroundIntegrationPolicy();
 #ifdef DAC_WAKE_OBSERVABILITY
     WakeAccountingPolicy();
 #endif
@@ -139,7 +142,7 @@ int main() {
     auto prior=Serialize(copy);
     Check(!Commit(copy,Config{},[](const std::string&){return false;})&&Serialize(copy)==prior,"failed save retains live configuration");
     Check(Commit(copy,c,[](const std::string&){return true;}),"successful save");
-    for(auto text:{"version=4\n","version=1\npoll=abc\n","version=1\npoll=2\npoll=3\n","version=1\nmonitor.zz=0,1\n","version=1\nautomatic=2\n","version=1\nunknown=1\n","timeout=5\n"})
+    for(auto text:{"version=6\n","version=1\npoll=abc\n","version=1\npoll=2\npoll=3\n","version=1\nmonitor.zz=0,1\n","version=1\nautomatic=2\n","version=1\nunknown=1\n","timeout=5\n"})
         Check(!Parse(text,copy,error),"malformed/version config rejection");
     Config rich;auto& pref=rich.monitors["A"];pref.timeout=10;pref.input=1;pref.media=0;pref.blackAfter=7;pref.hardware=true;pref.powerAfter=12;pref.fullscreen=true;
     pref.saver=7;pref.folder="C:\\photos-\xce\xbb";pref.custom="C:\\trusted.scr";pref.slideSeconds=21;pref.placement=4;pref.shuffle=pref.recursive=true;pref.background=0x112233;rich.hotkeys=true;rich.currentKey=3;rich.allKey=4;

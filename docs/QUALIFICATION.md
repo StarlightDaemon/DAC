@@ -1,8 +1,74 @@
 # Qualification remaining after the local development candidate
 
+The [resource attribution follow-up](GDI_ATTRIBUTION.md) records the removal of
+tray-icon allocation churn and corrections to timer-disabled mailbox progress
+and media-policy isolation in resource fixtures. Earlier failed captures remain
+preserved; passing repeats do not identify their historical object owners or
+generation-reset causes. Final full suites passed 30/30 in Release and Debug.
+Four new thirty-minute cases completed 30,720 lifetimes with zero resource
+violations and verified cleanup, but all four remain **FAIL** after received
+session notifications changed the target generations. A private desktop does
+not isolate Windows session events; stable-session endurance remains pending.
+
+For the subsequent F16 inspector/OS-only rescan, F04 native map and F11 background
+rules, use the concrete [separate visible-session checklist](INSPECTOR_MAP_BACKGROUND.md#separate-qualification-checklist).
+Hidden native fixtures do not establish keyboard/screen-reader acceptance, actual
+mixed-DPI/topology/session behavior or physical reliability. Live DDC capability
+probing stays deferred. The earlier intermittent wake issue remains open.
+
+The [GDI lifetime follow-up](GDI_LIFETIME_INVESTIGATION.md) associates the delayed
+six-object variation with native input initialization. Its
+[independent review](GDI_REVIEW.md) adds verified repeated focus, delayed sampling
+and strict GDI/settled-USER retention checks; object ownership remains unproven.
+It does not replace visible IME/accessibility or long-duration
+qualification, and does not disable native input in shipping DAC.
+
+The subsequent [extended resource record](GDI_ENDURANCE.md) contains four
+30-minute private-desktop trajectories and 30,528 focused lifetimes. No continuing
+GDI/USER increase was observed, but none is fully passing qualification: three
+cases crossed strict transient limits, and both Release cases failed their final
+generation assertion before verified graceful shutdown. A separate tray probe
+reproduced matching temporary allocations with cleanup; the original sample
+owners and Release reset causes remain unknown. Preserve these failures when
+planning attributed repeats. This bounded hidden work does not qualify real
+desktop hours/days, visible accessibility or physical behavior.
+
 Target: Windows 11 x64. The automated suite uses private desktops, generated
 fixtures, and simulated hardware/input observations. It never switches to the
 operator's input desktop. These results do not qualify a deployed application.
+
+The combined F02/F03/F05 implementation and its development verification are
+recorded in [FEATURE_IMPLEMENTATION.md](FEATURE_IMPLEMENTATION.md). That record's
+development Release/Debug suites each passed 28/28 tests with zero production
+static-analysis findings; this is not publication validation.
+No new visible or physical authority was
+granted by implementing these features. Use this concrete acceptance checklist in
+a separately authorized isolated visible session:
+
+- At 100%, 150% and 200%, and moving between different-DPI displays, open Display
+  controls from the tray and through the configurable click action. Check every
+  row/action/help/error with one, three and many displays, scrolling, focus rings,
+  Tab/Shift+Tab, arrow selection, Escape, screen-reader names/order, light/dark,
+  system changes and high contrast. Verify selected-row identity and that timers
+  update without moving edit caret or focus.
+- Save/Cancel empty, duplicate, long, non-Latin, astral and ampersand names in
+  Advanced settings. Compare setup, tray, overlays and flyout. Switch profiles,
+  reorder/unplug/replug, and retain disconnected names. Test failed Save and
+  explicit import review/rollback using disposable local files. Inspect redacted
+  diagnostics for absence of the chosen personal names.
+- On each eligible output use all presets, custom minimum/maximum and until;
+  verify resolved expiry, invalid date/range errors and DST gap/fold errors.
+  Replace/cancel/expire one timer while peers protect, including shared input,
+  media, global snooze, app/profile changes, manual/sticky starts and active spans.
+  Check immediate selected automatic dismissal and fresh idle after final
+  inhibition. Disconnect/ineligible/reconnect must not resurrect a timer.
+- In that isolated session test lock/unlock, suspend/resume and clock/time-zone
+  changes. Timers count suspended time and retain their accepted deadlines;
+  restart clears them. Recheck emergency exit and existing `--stop`, resource use
+  across repeated panel opens and the separate intermittent all-covered wake case.
+- Physical monitor-power/DDC acceptance still requires separate explicit approval,
+  an operator and a recovery route. Keep-awake does not change system sleep or
+  guarantee that hardware remains on. No physical wake fix is claimed.
 
 ## Automated verification scope
 
@@ -26,6 +92,13 @@ The automated fixtures cover:
   light/dark/high-contrast state, previews, scenes, controller and battery
   observations, and redacted diagnostics. Full settings file-picker/confirmation
   behavior remains source-reviewed; these fixtures are not visible UI acceptance.
+- Feature additions in the `features`, `flyout-resource-control` and
+  `inspector-map-background` groups: friendly-name migration, Unicode/duplicate
+  names, import disarming and redaction; keep-awake replacement, cancellation,
+  expiry and DST rejection; Display controls drafts, focus, themes and DPI with up
+  to 64 displays; 256 measured flyout allocation/deletion cycles with IME
+  disabled only in that fixture; and the display inspector, map and
+  running-application rules. These hidden fixtures are not visible UI acceptance.
 - Shipping-executable version/help/rejection paths, invalid hardware-helper
   rejection, bounded private-desktop startup, second-instance no-op, retained
   native ownership and scoped `--stop`, with build-local test profiles.
@@ -63,6 +136,7 @@ runner: [branch push](https://github.com/StarlightDaemon/DAC/actions/runs/378779
 and [PR synthetic-merge validation](https://github.com/StarlightDaemon/DAC/actions/runs/37877951558).
 Both runs completed successfully, including Release and Debug 27/27 suites,
 static analysis, pinned-input checks, reproducibility, packaging and privacy audit.
+Those suites predate the three feature test groups; CI now requires all 30 tests.
 These automated results do not qualify visible desktops or physical monitors.
 Required-check/branch-protection configuration remains a separate decision.
 

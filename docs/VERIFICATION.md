@@ -5,6 +5,24 @@ summarizes newly executed local validation of the sanitized publication source.
 Raw logs, XML, screenshots, environment data and detailed receipts remain in
 ignored local storage. They are neither tracked nor distributed.
 
+## Development additions after this validation
+
+This branch adds source that the publication validation below did not cover:
+F02 Display controls, F03 friendly names (settings schema 4), F05 temporary
+keep-awake, F16 display inspector, F04 display map and F11 running-application
+rules (settings schema 5), plus the tray resource-ownership correction from the
+GDI investigations. The production source hashes below identify the earlier
+published source, not this branch.
+
+Development records: [FEATURE_IMPLEMENTATION](FEATURE_IMPLEMENTATION.md),
+[INSPECTOR_MAP_BACKGROUND](INSPECTOR_MAP_BACKGROUND.md),
+[GDI_LIFETIME_INVESTIGATION](GDI_LIFETIME_INVESTIGATION.md),
+[GDI_REVIEW](GDI_REVIEW.md), [GDI_ENDURANCE](GDI_ENDURANCE.md) and
+[GDI_ATTRIBUTION](GDI_ATTRIBUTION.md).
+The raw evidence those development records cite was kept in local development storage and is
+not tracked in this repository. Their results are not publication validation.
+Rerun the commands below before treating this source as validated.
+
 ## Source and dependency identity
 
 The publication branch starts directly at DAC's initial commit
@@ -60,6 +78,10 @@ cmake --build build/repro --parallel 2
 ./tools/package.ps1 -BuildDirectory build/release
 ./tools/verify-package.ps1 -Archive packages/DAC-0.1.0-dev-windows-x64.zip
 ```
+
+The suite results below come from the 27-test suite that preceded this branch.
+The current suite has 30 tests: it adds the `features`, `flyout-resource-control`
+and `inspector-map-background` groups, which this recipe has not yet run.
 
 | Check | Newly executed result |
 | --- | --- |
@@ -132,9 +154,9 @@ not establish that such an artifact exists. CI documentation changes can change
 the portable archive digest; verify the downloaded ZIP against its own adjacent
 receipt, then verify extracted DAC.exe against its internal SHA256SUMS.txt.
 
-`tools/package-manifest.json` declares exactly 19 archive files: DAC.exe, four
-root product/license documents, eleven reviewed Markdown documents, the Fujin
-license, a fixed-field PE report and SHA256SUMS.txt. Packaging and CMake installation
+`tools/package-manifest.json` declares exactly 28 archive files: DAC.exe, four
+root product/license documents, nineteen reviewed Markdown documents, the feature
+catalog JSON, the Fujin license, a fixed-field PE report and SHA256SUMS.txt. Packaging and CMake installation
 use individually declared files. Raw evidence, prior delivery receipts, arbitrary
 documents, caches, build tools, source/test binaries and previous packages cannot
 enter through directory recursion. ZIP names use ordinal ordering, fixed timestamps

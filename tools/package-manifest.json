@@ -34,6 +34,21 @@
     },
     {
       "kind": "repository",
+      "source": "docs/COMPARATIVE_REVIEW.md",
+      "path": "docs/COMPARATIVE_REVIEW.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/FEATURE_CATALOG.json",
+      "path": "docs/FEATURE_CATALOG.json"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/FEATURE_IMPLEMENTATION.md",
+      "path": "docs/FEATURE_IMPLEMENTATION.md"
+    },
+    {
+      "kind": "repository",
       "source": "docs/FEATURE_PARITY.md",
       "path": "docs/FEATURE_PARITY.md"
     },
@@ -44,8 +59,38 @@
     },
     {
       "kind": "repository",
+      "source": "docs/GDI_ATTRIBUTION.md",
+      "path": "docs/GDI_ATTRIBUTION.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/GDI_ENDURANCE.md",
+      "path": "docs/GDI_ENDURANCE.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/GDI_LIFETIME_INVESTIGATION.md",
+      "path": "docs/GDI_LIFETIME_INVESTIGATION.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/GDI_REVIEW.md",
+      "path": "docs/GDI_REVIEW.md"
+    },
+    {
+      "kind": "repository",
       "source": "docs/GITHUB_INTEGRATION.md",
       "path": "docs/GITHUB_INTEGRATION.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/IMPLEMENTATION_GUIDELINES.md",
+      "path": "docs/IMPLEMENTATION_GUIDELINES.md"
+    },
+    {
+      "kind": "repository",
+      "source": "docs/INSPECTOR_MAP_BACKGROUND.md",
+      "path": "docs/INSPECTOR_MAP_BACKGROUND.md"
     },
     {
       "kind": "repository",
