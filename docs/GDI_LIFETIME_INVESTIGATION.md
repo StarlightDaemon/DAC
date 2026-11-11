@@ -1,5 +1,8 @@
 # Flyout GDI lifetime investigation — 2026-10-16
 
+> Paths under `evidence/` name local development evidence that is not tracked
+> in this repository, so they appear as plain paths rather than links.
+
 The evidence associates the six-object variation with native-input initialization
 after focusing an Edit control. No accumulating DAC flyout leak was observed;
 the six objects' ownership and whether they are caching or retained allocations
@@ -20,40 +23,40 @@ desktops. No input-desktop switching, physical DDC, startup registration, power
 plan changes, arbitrary application execution, installation or deployment was
 performed. Existing tracked/untracked work and earlier evidence were preserved.
 All twelve production source files are byte-identical to the investigation's
-starting point: [preservation hashes](../evidence/gdi-lifetime-20261016/production-preservation.json).
+starting point: preservation hashes (`evidence/gdi-lifetime-20261016/production-preservation.json`).
 
 ## Cause and evidence
 
 1. Both existing binaries reproduced **52→58 GDI objects**, with no process-handle
-   growth: [Release baseline](../evidence/gdi-lifetime-20261016/baseline-release-features.log),
-   [Debug baseline](../evidence/gdi-lifetime-20261016/baseline-debug-features.log).
+   growth: Release baseline (`evidence/gdi-lifetime-20261016/baseline-release-features.log`),
+   Debug baseline (`evidence/gdi-lifetime-20261016/baseline-debug-features.log`).
    The per-cycle trace showed one rise followed by a plateau, rather than a
    retained object on each flyout open/close:
-   [cycle trace](../evidence/gdi-lifetime-20261016/cycle-trace-release.log).
+   cycle trace (`evidence/gdi-lifetime-20261016/cycle-trace-release.log`).
 2. The exact six-object rise also occurred while the UI owner **slept without
    recreating a flyout**: 53→59, followed by 58 after deleting the flyout font.
    Both subsequent resource waves stayed at 58:
-   [idle experiment](../evidence/gdi-lifetime-20261016/idle-before-cycles-release.log).
+   idle experiment (`evidence/gdi-lifetime-20261016/idle-before-cycles-release.log`).
    A plain first flyout without the focus exercise remained at 23 throughout its
-   idle interval: [initial control](../evidence/gdi-lifetime-20261016/initial-idle-release.log).
+   idle interval: initial control (`evidence/gdi-lifetime-20261016/initial-idle-release.log`).
 3. With the normal native-input path, focusing the hidden Edit triggered delayed
    GDI/USER initialization. The owner thread had `IME` and `MSCTFIME UI` windows;
    no settings, map or inspector window had opened accidentally:
-   [native-input stages](../evidence/gdi-lifetime-20261016/stage-ime-enabled-release.log).
+   native-input stages (`evidence/gdi-lifetime-20261016/stage-ime-enabled-release.log`).
    Calling `ImmDisableIME(-1)` **before initialization in the fixture process**
    removed those windows and the delayed allocation. Its idle stages stayed flat:
-   [process-local IME control](../evidence/gdi-lifetime-20261016/stage-ime-disabled-release.log).
+   process-local IME control (`evidence/gdi-lifetime-20261016/stage-ime-disabled-release.log`).
    Microsoft documents the process/thread scope and required early call timing
    for [ImmDisableIME](https://learn.microsoft.com/en-us/windows/win32/api/imm/nf-imm-immdisableime).
 4. A minimal program containing only hidden native windows, a focused Edit,
    normal message pumping and COM initialization independently exhibited delayed
    native-input allocation followed by a repeatable plateau. Its counts differ
    from DAC's (33→40 during first focus, then 40 on subsequent focused windows):
-   [owned native probe source](../evidence/gdi-lifetime-20261016/edit-focus-probe.cpp),
-   [probe result](../evidence/gdi-lifetime-20261016/edit-focus-probe.log).
+   owned native probe source (`evidence/gdi-lifetime-20261016/edit-focus-probe.cpp`),
+   probe result (`evidence/gdi-lifetime-20261016/edit-focus-probe.log`).
 5. Temporary read-only handle inventories found no six new retained public
    font/bitmap/DC handles across the exact rise:
-   [inventory](../evidence/gdi-lifetime-20261016/handle-inventory-v4-complete-release.log).
+   inventory (`evidence/gdi-lifetime-20261016/handle-inventory-v4-complete-release.log`).
    This Windows-build-specific diagnostic is supporting evidence, not a portable
    test oracle. The first legacy query returned null; guarded retries used the
    available read-only exported table. Diagnostic timeouts are preserved. None
@@ -98,12 +101,12 @@ build. Final test evidence below uses completed builds exclusively.
 
 | Check | Actual result | Evidence |
 |---|---|---|
-| `pwsh -NoProfile -File tools/build.ps1 -Configuration Release -Test` | **30/30 passed**, 104.66 s | [Summary](../evidence/gdi-lifetime-20261016/release-full-01.log), [detail](../evidence/gdi-lifetime-20261016/release-details-01.log), [JUnit](../evidence/gdi-lifetime-20261016/release-results-01.xml) |
-| `pwsh -NoProfile -File tools/build.ps1 -Configuration Debug -Test` | **30/30 passed**, 113.03 s | [Summary](../evidence/gdi-lifetime-20261016/debug-full-01.log), [detail](../evidence/gdi-lifetime-20261016/debug-details-01.log), [JUnit](../evidence/gdi-lifetime-20261016/debug-results-01.xml) |
+| `pwsh -NoProfile -File tools/build.ps1 -Configuration Release -Test` | **30/30 passed**, 104.66 s | Summary (`evidence/gdi-lifetime-20261016/release-full-01.log`), detail (`evidence/gdi-lifetime-20261016/release-details-01.log`), JUnit (`evidence/gdi-lifetime-20261016/release-results-01.xml`) |
+| `pwsh -NoProfile -File tools/build.ps1 -Configuration Debug -Test` | **30/30 passed**, 113.03 s | Summary (`evidence/gdi-lifetime-20261016/debug-full-01.log`), detail (`evidence/gdi-lifetime-20261016/debug-details-01.log`), JUnit (`evidence/gdi-lifetime-20261016/debug-results-01.xml`) |
 | Policy, both configurations | **117,665 assertions each**; 48 input/media/mute/poll combinations and eight virtual hours | Full-suite detail above |
-| `pwsh -NoProfile -File evidence/gdi-lifetime-20261016/run-analysis.ps1` | Exit 0; zero warnings/findings; empty `DEFECTS`; production hashes unchanged | [Log](../evidence/gdi-lifetime-20261016/static-analysis.log), [XML](../evidence/gdi-lifetime-20261016/static-analysis.xml), [hashes](../evidence/gdi-lifetime-20261016/analysis-source-hashes.json) |
-| `pwsh -NoProfile -File tools/verify-pe.ps1 -Executable build/release/DAC.exe` and `build/debug/DAC.exe` | Both passed: AMD64 GUI, ASLR/DEP/high-entropy VA/CFG and 12 allowlisted Windows imports | [Release](../evidence/gdi-lifetime-20261016/pe-release.json), [Debug](../evidence/gdi-lifetime-20261016/pe-debug.json) |
-| `git diff --check`; source/evidence reconciliation | Passed; only the intended two existing test source files changed; all production sources preserved | [Diff check](../evidence/gdi-lifetime-20261016/diff-check.log), [manifest](../evidence/gdi-lifetime-20261016/verification.json), [changed test hashes](../evidence/gdi-lifetime-20261016/changed-existing-source-hashes.json) |
+| `pwsh -NoProfile -File evidence/gdi-lifetime-20261016/run-analysis.ps1` | Exit 0; zero warnings/findings; empty `DEFECTS`; production hashes unchanged | Log (`evidence/gdi-lifetime-20261016/static-analysis.log`), XML (`evidence/gdi-lifetime-20261016/static-analysis.xml`), hashes (`evidence/gdi-lifetime-20261016/analysis-source-hashes.json`) |
+| `pwsh -NoProfile -File tools/verify-pe.ps1 -Executable build/release/DAC.exe` and `build/debug/DAC.exe` | Both passed: AMD64 GUI, ASLR/DEP/high-entropy VA/CFG and 12 allowlisted Windows imports | Release (`evidence/gdi-lifetime-20261016/pe-release.json`), Debug (`evidence/gdi-lifetime-20261016/pe-debug.json`) |
+| `git diff --check`; source/evidence reconciliation | Passed; only the intended two existing test source files changed; all production sources preserved | Diff check (`evidence/gdi-lifetime-20261016/diff-check.log`), manifest (`evidence/gdi-lifetime-20261016/verification.json`), changed test hashes (`evidence/gdi-lifetime-20261016/changed-existing-source-hashes.json`) |
 
 Each row below contains **four 64-cycle measured waves**, after 16 warmup cycles
 and bounded settling. Every measured wave had these same closed-state peaks:

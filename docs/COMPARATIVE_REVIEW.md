@@ -1,5 +1,8 @@
 # DAC open source comparison and feature roadmap
 
+> Paths under `evidence/` name local development evidence that is not tracked
+> in this repository, so they appear as plain paths rather than links.
+
 Review date: October 15, 2026, America/Denver. Source baseline: `3ef15bdd7947f331dd33c1a7e85fc9802f5a2f3e`. Product: DAC 0.1.0 development candidate, Windows 11 x64 target.
 
 DAC already combines independent monitor protection, activity policies, multiple presentation types and guarded power control. Its best near-term expansion is to make that functionality easier to operate: an all-display flyout, persistent display names and scoped temporary keep-awake controls. Hardware brightness is a useful later expansion, but its recovery and coexistence cost makes it a separate workstream. Qualifying real wake behavior remains more valuable than adding visual variety.
@@ -26,7 +29,7 @@ The review covers the tracked product source, native resources, build/dependency
 | Build and distribution | [CMake](../CMakeLists.txt), pinned [toolchain](TOOLCHAIN.md)/[Fujin](FUJIN.md), [native resources](../resources/dac.rc), static analysis, PE checks, reproducible ZIP and package verifier. | Clean CI, signing and public distribution remain delivery work. Native runtime size/offline operation are product strengths worth preserving. |
 | Provenance and recovery | [source inventory](SOURCE_INVENTORY.md), [security](SECURITY.md), [review](SECURITY_REVIEW.md) and [qualification](QUALIFICATION.md). | Preserve explicit permissions, local-only trusted content and documented recovery limits while selecting features. |
 
-The retained [Release log](../evidence/tests-release.log) and [Debug log](../evidence/tests-debug.log) each report 27/27 passing tests. Those are historical local runs documented on October 8, 2026; they were not rerun for this documentation change. The [superseded investigation log](../evidence/investigation/README.md) is not a current failure or an additional pass. Physical all-covered wake, real media, HDR, visible accessibility, docking/session transitions and DDC remain qualification work under [QUALIFICATION.md](QUALIFICATION.md).
+The retained Release log (`evidence/tests-release.log`) and Debug log (`evidence/tests-debug.log`) each report 27/27 passing tests. Those are historical local runs documented on October 8, 2026; they were not rerun for this documentation change. The superseded investigation log (`evidence/investigation/README.md`) is not a current failure or an additional pass. Physical all-covered wake, real media, HDR, visible accessibility, docking/session transitions and DDC remain qualification work under [QUALIFICATION.md](QUALIFICATION.md).
 
 ## Open source comparables
 

@@ -1,5 +1,8 @@
 # Private-desktop GDI/USER endurance — 2026-10-17
 
+> Paths under `evidence/` name local development evidence that is not tracked
+> in this repository, so they appear as plain paths rather than links.
+
 The subsequent [attribution and correction record](GDI_ATTRIBUTION.md) removes
 tray-icon copy churn and strengthens fixture synchronization and media isolation.
 It preserves all four failed cases below; later results do not retroactively
@@ -20,10 +23,10 @@ and are not replaced by those shorter passing suites.
 
 ## Method and fixed bounds
 
-The evidence-only [fixture](../evidence/gdi-endurance-20261017/endurance-v2.cpp)
+The evidence-only fixture (`evidence/gdi-endurance-20261017/endurance-v2.cpp`)
 includes the current production integration fixtures. It does not change shipping
 DAC, ordinary tests or their timeouts. The dedicated
-[runner](../evidence/gdi-endurance-20261017/endurance-runner.cpp) differs from the
+runner (`evidence/gdi-endurance-20261017/endurance-runner.cpp`) differs from the
 reviewed ordinary runner only in its outer 1,980-second endurance deadline and
 timeout message. It retains private-desktop creation, hidden startup, suspended
 launch, inherited-handle restriction, kill-on-close job containment, exit checks
@@ -61,7 +64,7 @@ these cases do not inventory the system's native object owners.
 ## Evidence integrity and independent review
 
 All new artifacts are under a separate
-[evidence directory](../evidence/gdi-endurance-20261017/). Earlier passing,
+evidence directory (`evidence/gdi-endurance-20261017/`). Earlier passing,
 failed and investigation evidence is preserved. Builds use the pinned MSVC/SDK
 and repository compiler hardening conventions, with optimization/static release
 CRT for Release and unoptimized/runtime-check/static debug CRT for Debug. These
@@ -121,18 +124,18 @@ generation map. Injected observations do not suppress real session, power,
 topology or tray notifications, whose normal handlers can reset generations.
 That is a possible mechanism, not an attribution of these two failures.
 
-A separately owned [reset probe](../evidence/gdi-endurance-20261017/reset-attribution-probe.cpp)
+A separately owned reset probe (`evidence/gdi-endurance-20261017/reset-attribution-probe.cpp`)
 verified unchanged generations across eight ordinary focused lifetimes. A
 synthetic session notification delivered only to its private HWND then produced
 Session counter 0→1 and serial 6→9 for three unchanged targets, with unchanged
 configuration, no leases/presentations and verified graceful shutdown. No Windows
 session lock or power-setting API was called. Its
-[log](../evidence/gdi-endurance-20261017/release-reset-probe/runtime.log)
+log (`evidence/gdi-endurance-20261017/release-reset-probe/runtime.log`)
 demonstrates attribution for the injected mechanism only.
 
-The [bound outcome report](../evidence/gdi-endurance-20261017/observed-outcomes-bound.json),
-[timing audit](../evidence/gdi-endurance-20261017/observed-timing-audit.json) and
-[case map](../evidence/gdi-endurance-20261017/final-case-map.json) identify the
+The bound outcome report (`evidence/gdi-endurance-20261017/observed-outcomes-bound.json`),
+timing audit (`evidence/gdi-endurance-20261017/observed-timing-audit.json`) and
+case map (`evidence/gdi-endurance-20261017/final-case-map.json`) identify the
 actual source/binaries and distinguish measured coverage, completed lifecycle,
 graceful shutdown and passing qualification. Failed Release postconditions do not
 acquire invented footers or idle-sample totals. Original strict/completed-only
@@ -166,10 +169,10 @@ Release/native V2 wave 6 and Debug/native wave 64 observed process GDI
 **8→9→8 USER**, with the increase present at one final wave boundary and released
 by the next. The strict test records those waves as failures and continues
 without rebasing. A separate
-[owned tray probe](../evidence/gdi-endurance-20261017/tray-resource-probe.cpp)
+owned tray probe (`evidence/gdi-endurance-20261017/tray-resource-probe.cpp`)
 reproduced **20→23→20 GDI** and **8→9→8 USER** in all eight rounds, both for direct
 `CopyIcon`/`DestroyIcon` and the real maintenance worker's icon handoff with a
-bounded injected delay. Its [log](../evidence/gdi-endurance-20261017/release-tray-probe/runtime.log)
+bounded injected delay. Its log (`evidence/gdi-endurance-20261017/release-tray-probe/runtime.log`)
 and source/binary snapshots are separately sealed. DAC normally copies an icon
 for periodic tray work and destroys it asynchronously; process-wide resource
 samples and a UI-thread GDI flush can overlap that ownership. The probe establishes
@@ -197,7 +200,7 @@ commit/tag and clean checkout verified afterward, with those metadata hashes
 unchanged. No reset, clean, fetch, ref replacement, reclone or pruning occurred.
 The directory's disappearance remains unexplained. The failed configure record
 is preserved; copied prior CTest artifacts in that failed wrapper are explicitly
-identified as historical in the [note](../evidence/gdi-endurance-20261017/configure-failure-note.txt).
+identified as historical in the note (`evidence/gdi-endurance-20261017/configure-failure-note.txt`).
 
 ## Remaining qualification
 
@@ -218,15 +221,15 @@ owned-controller lifecycle checks exclude the earlier second-instance no-op.
 
 | Executed check | Actual result | Evidence |
 |---|---|---|
-| `pwsh -NoProfile -File tools/build.ps1 -Configuration Release -Test` | **30/30 passed**, 125.55 s; 117,665 policy assertions | [Summary](../evidence/gdi-endurance-20261017/regression-final-release-02/full.log), [detail](../evidence/gdi-endurance-20261017/regression-final-release-02/details.log), [JUnit](../evidence/gdi-endurance-20261017/regression-final-release-02/results.xml) |
-| `pwsh -NoProfile -File tools/build.ps1 -Configuration Debug -Test` | **30/30 passed**, 132.93 s; 117,665 policy assertions | [Summary](../evidence/gdi-endurance-20261017/regression-final-debug-02/full.log), [detail](../evidence/gdi-endurance-20261017/regression-final-debug-02/details.log), [JUnit](../evidence/gdi-endurance-20261017/regression-final-debug-02/results.xml) |
-| `tools/verify-pe.ps1` for both shipping executables | Both passed AMD64 GUI/hardening/import checks; shipping hashes unchanged | [Release](../evidence/gdi-endurance-20261017/pe-release.json), [Debug](../evidence/gdi-endurance-20261017/pe-debug.json) |
-| Eight distinct evidence guards | Short waves, unmeasured tail, short receipt, false PASS, wrong violation count, missing shutdown, false graceful footer and changed derived qualification fields all rejected; valid derived control accepted | [Timing](../evidence/gdi-endurance-20261017/timing-guards-01/), [outcome](../evidence/gdi-endurance-20261017/observed-guards-03/results.json), [derived report](../evidence/gdi-endurance-20261017/derived-report-guard-01/result.json) |
-| Final reconciliation / preservation | Four measured trajectories, two verified graceful endurance shutdowns, **zero fully passing endurance cases**; **358 previous evidence files** and **12 ordinary binaries** unchanged; existing production/tests/tools unchanged | [Audit](../evidence/gdi-endurance-20261017/final-audit.json), [log](../evidence/gdi-endurance-20261017/final-audit.log), [source archive](../evidence/gdi-endurance-20261017/tested-source-snapshot.json) |
-| `git diff --check` | Passed | [Log](../evidence/gdi-endurance-20261017/diff-check.log) |
+| `pwsh -NoProfile -File tools/build.ps1 -Configuration Release -Test` | **30/30 passed**, 125.55 s; 117,665 policy assertions | Summary (`evidence/gdi-endurance-20261017/regression-final-release-02/full.log`), detail (`evidence/gdi-endurance-20261017/regression-final-release-02/details.log`), JUnit (`evidence/gdi-endurance-20261017/regression-final-release-02/results.xml`) |
+| `pwsh -NoProfile -File tools/build.ps1 -Configuration Debug -Test` | **30/30 passed**, 132.93 s; 117,665 policy assertions | Summary (`evidence/gdi-endurance-20261017/regression-final-debug-02/full.log`), detail (`evidence/gdi-endurance-20261017/regression-final-debug-02/details.log`), JUnit (`evidence/gdi-endurance-20261017/regression-final-debug-02/results.xml`) |
+| `tools/verify-pe.ps1` for both shipping executables | Both passed AMD64 GUI/hardening/import checks; shipping hashes unchanged | Release (`evidence/gdi-endurance-20261017/pe-release.json`), Debug (`evidence/gdi-endurance-20261017/pe-debug.json`) |
+| Eight distinct evidence guards | Short waves, unmeasured tail, short receipt, false PASS, wrong violation count, missing shutdown, false graceful footer and changed derived qualification fields all rejected; valid derived control accepted | Timing (`evidence/gdi-endurance-20261017/timing-guards-01/`), outcome (`evidence/gdi-endurance-20261017/observed-guards-03/results.json`), derived report (`evidence/gdi-endurance-20261017/derived-report-guard-01/result.json`) |
+| Final reconciliation / preservation | Four measured trajectories, two verified graceful endurance shutdowns, **zero fully passing endurance cases**; **358 previous evidence files** and **12 ordinary binaries** unchanged; existing production/tests/tools unchanged | Audit (`evidence/gdi-endurance-20261017/final-audit.json`), log (`evidence/gdi-endurance-20261017/final-audit.log`), source archive (`evidence/gdi-endurance-20261017/tested-source-snapshot.json`) |
+| `git diff --check` | Passed | Log (`evidence/gdi-endurance-20261017/diff-check.log`) |
 
-The [capture/build scripts](../evidence/gdi-endurance-20261017/build-endurance-v2.ps1)
-and [private-desktop driver](../evidence/gdi-endurance-20261017/run-endurance-v2.ps1)
+The capture/build scripts (`evidence/gdi-endurance-20261017/build-endurance-v2.ps1`)
+and private-desktop driver (`evidence/gdi-endurance-20261017/run-endurance-v2.ps1`)
 are reproducible evidence tools. The final case map selects native/control
 `*-01` runs under `release-v2` and `debug-v2`. The driver labels nonzero exits
 `incomplete`; the bound report preserves that receipt and separately classifies

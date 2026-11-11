@@ -1,9 +1,12 @@
 # Resource attribution and fixture corrections — 2026-10-18
 
+> Paths under `evidence/` name local development evidence that is not tracked
+> in this repository, so they appear as plain paths rather than links.
+
 This follows the [30-minute endurance investigation](GDI_ENDURANCE.md). All
 earlier captures, including the four nonpassing cases and the unknown historical
 Release generation resets, remain evidence. New captures are in a separate
-[directory](../evidence/gdi-attribution-20261018/). Runtime checks use owned,
+directory (`evidence/gdi-attribution-20261018/`). Runtime checks use owned,
 job-contained processes on private noninteractive desktops. No desktop is
 switched and no Windows session is locked by these tests.
 
@@ -17,7 +20,7 @@ generation checks or complete endurance qualification.
 
 ## Changes and attribution limits
 
-The pre-fix [owned tray probe](../evidence/gdi-attribution-20261018/tray-ownership.cpp)
+The pre-fix owned tray probe (`evidence/gdi-attribution-20261018/tray-ownership.cpp`)
 reproduced these counts in all eight rounds:
 
 | Phase | GDI | USER |
@@ -28,7 +31,7 @@ reproduced these counts in all eight rounds:
 | After 32 pending replacements | 26 | 9 |
 | After completion | 20 | 7 |
 
-The [pre-fix log](../evidence/gdi-attribution-20261018/release-legacy/legacy-02/runtime.log)
+The pre-fix log (`evidence/gdi-attribution-20261018/release-legacy/legacy-02/runtime.log`)
 demonstrates bounded asynchronous ownership, including complete shutdown. It
 does not identify the objects in any earlier process, or the six original
 native-input-associated objects. No accumulating icon leak was demonstrated.
@@ -55,7 +58,7 @@ unique retrospective cause.
 A later Debug suite exposed another genuine test failure: GDI stayed at 58,
 but USER peaked at 58 against a warmup ceiling of 57, settled at 57 against a
 baseline of 56, and handles reached 493 against 487 + 4. The
-[failed capture](../evidence/gdi-attribution-20261018/regression-debug-02/full.log)
+failed capture (`evidence/gdi-attribution-20261018/regression-debug-02/full.log`)
 is preserved. Review found that the native 64-display setup restored default
 `media=true`; its control used `media=false`. Real audio/COM work could therefore
 overlap the native measurement. This is a concrete fixture mismatch, not proof
@@ -75,7 +78,7 @@ acknowledgment does not prove all Windows COM/TSF asynchronous activity has ende
 
 ## Generation failure handling
 
-The separate [attributed fixture](../evidence/gdi-attribution-20261018/endurance.cpp)
+The separate attributed fixture (`evidence/gdi-attribution-20261018/endurance.cpp`)
 subclasses only its owned private controller HWND and calls the original window
 procedure. It logs generation/serial changes, triggering message type/code,
 reset-counter deltas and bounded state counts. It omits raw input, handles,
@@ -107,7 +110,7 @@ Each case therefore stopped after four completed measured waves (256 completed
 lifetimes, roughly 60 seconds), with a resource-violating fourth wave and no
 verified graceful-shutdown footer. These are **failed short trajectories**, not
 four thirty-minute runs. The
-[abort reconciliation](../evidence/gdi-attribution-20261018/aborted-attempts.json)
+abort reconciliation (`evidence/gdi-attribution-20261018/aborted-attempts.json`)
 binds their actual source, binaries, logs and ordered events. Resource changes
 coincided with the session/catalog boundary; it does not identify their object
 types. The received notifications attribute these new generation changes, not
@@ -118,7 +121,7 @@ Windows session notifications or the OS display catalog. The observed replacemen
 of injected targets is not evidence that physical monitors were moved or changed.
 
 One unchanged repeat was explicitly selected as attempt `02` in a frozen
-[case map](../evidence/gdi-attribution-20261018/case-map.json). The selection is
+case map (`evidence/gdi-attribution-20261018/case-map.json`). The selection is
 independent of its eventual pass/fail outcome; there is no automatic search for
 a passing attempt. The earlier `01` failures remain intact.
 
@@ -133,16 +136,16 @@ reset was removed to obtain a passing result.
 
 | Selected case | Measured ms | Waves / lifetimes | GDI baseline / peak / final | USER baseline / peak / final | Resource-violating waves | Overall |
 |---|---:|---:|---|---|---:|---|
-| [Release native](../evidence/gdi-attribution-20261018/release-endurance-v3/endurance-native-02/runtime.log) | 1,813,531 | 120 / 7,680 | 57 / 57 / 57 | 57 / 58 / 52 | 0 | FAIL: 3 generation mismatches |
-| [Release control](../evidence/gdi-attribution-20261018/release-endurance-v3/endurance-control-02/runtime.log) | 1,814,781 | 120 / 7,680 | 22 / 22 / 22 | 8 / 8 / 8 | 0 | FAIL: 3 generation mismatches |
-| [Debug native](../evidence/gdi-attribution-20261018/debug-endurance-v3/endurance-native-02/runtime.log) | 1,812,500 | 120 / 7,680 | 57 / 57 / 57 | 56 / 57 / 52 | 0 | FAIL: 3 generation mismatches |
-| [Debug control](../evidence/gdi-attribution-20261018/debug-endurance-v3/endurance-control-02/runtime.log) | 1,812,828 | 120 / 7,680 | 22 / 22 / 22 | 8 / 8 / 8 | 0 | FAIL: 3 generation mismatches |
+| Release native (`evidence/gdi-attribution-20261018/release-endurance-v3/endurance-native-02/runtime.log`) | 1,813,531 | 120 / 7,680 | 57 / 57 / 57 | 57 / 58 / 52 | 0 | FAIL: 3 generation mismatches |
+| Release control (`evidence/gdi-attribution-20261018/release-endurance-v3/endurance-control-02/runtime.log`) | 1,814,781 | 120 / 7,680 | 22 / 22 / 22 | 8 / 8 / 8 | 0 | FAIL: 3 generation mismatches |
+| Debug native (`evidence/gdi-attribution-20261018/debug-endurance-v3/endurance-native-02/runtime.log`) | 1,812,500 | 120 / 7,680 | 57 / 57 / 57 | 56 / 57 / 52 | 0 | FAIL: 3 generation mismatches |
+| Debug control (`evidence/gdi-attribution-20261018/debug-endurance-v3/endurance-control-02/runtime.log`) | 1,812,828 | 120 / 7,680 | 22 / 22 / 22 | 8 / 8 / 8 | 0 | FAIL: 3 generation mismatches |
 
 Each case has zero policy failures, two attributed events, no trace overflow and
 verified shutdown. Native USER peaks are one above baseline, within the original
 warmup ceiling; they are not flat at every sample. Aggregate measured time is
 7,253,640 ms across four concurrent processes, not two hours of elapsed testing.
-The [canonical reconciliation](../evidence/gdi-attribution-20261018/outcome-audit-final.json)
+The canonical reconciliation (`evidence/gdi-attribution-20261018/outcome-audit-final.json`)
 retains all four `passed: false` outcomes.
 
 ## Executed verification
@@ -151,12 +154,12 @@ The final full recipes ran serially, with no endurance/probe runtime overlap:
 
 | Check | Actual result | Evidence |
 |---|---|---|
-| `pwsh -NoProfile -File tools/build.ps1 -Configuration Release -Test` | **30/30 passed**, 128.03 seconds, **117,665 policy assertions** | [Log](../evidence/gdi-attribution-20261018/regression-release-03/full.log), [details](../evidence/gdi-attribution-20261018/regression-release-03/details.log), [JUnit](../evidence/gdi-attribution-20261018/regression-release-03/results.xml) |
-| `pwsh -NoProfile -File tools/build.ps1 -Configuration Debug -Test` | **30/30 passed**, 135.83 seconds, **117,665 policy assertions** | [Log](../evidence/gdi-attribution-20261018/regression-debug-03/full.log), [details](../evidence/gdi-attribution-20261018/regression-debug-03/details.log), [JUnit](../evidence/gdi-attribution-20261018/regression-debug-03/results.xml) |
-| Owned tray lifecycle probe | Eight rounds per configuration with flat GDI/USER through active/queued replacement and restored baseline; shutdown with pending work verified | [Release](../evidence/gdi-attribution-20261018/release-fixed/fixed-01/runtime.log), [current Debug](../evidence/gdi-attribution-20261018/debug-fixed-v3/fixed-01/runtime.log) |
-| Explicit generation failure controls | Both configurations: one attributed Session event, **three generation failures**, zero resource violations, **FAIL / exit 1**, followed by verified complete shutdown | [Release](../evidence/gdi-attribution-20261018/release-endurance-v3/attribution-control-01/runtime.log), [Debug](../evidence/gdi-attribution-20261018/debug-endurance-v3/attribution-control-01/runtime.log) |
-| Pinned production static analysis | Exit 0, zero warnings, empty `DEFECTS`, unchanged inputs | [Recipe](../evidence/gdi-attribution-20261018/tools/analysis.ps1), [log](../evidence/gdi-attribution-20261018/analysis-02/analysis.log), [XML](../evidence/gdi-attribution-20261018/analysis-02/standalone.xml) |
-| PE hardening/dependency checks | Both shipping executables passed | [Release](../evidence/gdi-attribution-20261018/pe-v3-release.json), [Debug](../evidence/gdi-attribution-20261018/pe-v3-debug.json) |
+| `pwsh -NoProfile -File tools/build.ps1 -Configuration Release -Test` | **30/30 passed**, 128.03 seconds, **117,665 policy assertions** | Log (`evidence/gdi-attribution-20261018/regression-release-03/full.log`), details (`evidence/gdi-attribution-20261018/regression-release-03/details.log`), JUnit (`evidence/gdi-attribution-20261018/regression-release-03/results.xml`) |
+| `pwsh -NoProfile -File tools/build.ps1 -Configuration Debug -Test` | **30/30 passed**, 135.83 seconds, **117,665 policy assertions** | Log (`evidence/gdi-attribution-20261018/regression-debug-03/full.log`), details (`evidence/gdi-attribution-20261018/regression-debug-03/details.log`), JUnit (`evidence/gdi-attribution-20261018/regression-debug-03/results.xml`) |
+| Owned tray lifecycle probe | Eight rounds per configuration with flat GDI/USER through active/queued replacement and restored baseline; shutdown with pending work verified | Release (`evidence/gdi-attribution-20261018/release-fixed/fixed-01/runtime.log`), current Debug (`evidence/gdi-attribution-20261018/debug-fixed-v3/fixed-01/runtime.log`) |
+| Explicit generation failure controls | Both configurations: one attributed Session event, **three generation failures**, zero resource violations, **FAIL / exit 1**, followed by verified complete shutdown | Release (`evidence/gdi-attribution-20261018/release-endurance-v3/attribution-control-01/runtime.log`), Debug (`evidence/gdi-attribution-20261018/debug-endurance-v3/attribution-control-01/runtime.log`) |
+| Pinned production static analysis | Exit 0, zero warnings, empty `DEFECTS`, unchanged inputs | Recipe (`evidence/gdi-attribution-20261018/tools/analysis.ps1`), log (`evidence/gdi-attribution-20261018/analysis-02/analysis.log`), XML (`evidence/gdi-attribution-20261018/analysis-02/standalone.xml`) |
+| PE hardening/dependency checks | Both shipping executables passed | Release (`evidence/gdi-attribution-20261018/pe-v3-release.json`), Debug (`evidence/gdi-attribution-20261018/pe-v3-debug.json`) |
 
 Release `01` (mailbox wait), Debug `02` (native resource bounds), older build
 versions, sandbox desktop-unavailable attempts and their receipts are preserved.
@@ -165,13 +168,13 @@ for both configurations after the media-fixture correction. A later PASS is not
 a reclassification of any earlier failure. JUnit's root duration is rounded;
 the precise times above come from the sealed CTest summary logs.
 
-The [focused patch](../evidence/gdi-attribution-20261018/implementation.patch)
+The focused patch (`evidence/gdi-attribution-20261018/implementation.patch`)
 compares only this task's three implementation/test files with their exact
-starting contents. The [V3 source archive](../evidence/gdi-attribution-20261018/tested-source-v3-snapshot.zip)
-and [entry hashes](../evidence/gdi-attribution-20261018/tested-source-v3-snapshot.json)
+starting contents. The V3 source archive (`evidence/gdi-attribution-20261018/tested-source-v3-snapshot.zip`)
+and entry hashes (`evidence/gdi-attribution-20261018/tested-source-v3-snapshot.json`)
 preserve the actual code/tooling and generated headers used by the final builds.
 
-The separate [outcome auditor](../evidence/gdi-attribution-20261018/tools/audit.ps1)
+The separate outcome auditor (`evidence/gdi-attribution-20261018/tools/audit.ps1`)
 requires exact seal inventories and binary sets, mandatory unique numeric
 fields, at least 100 waves and thirty measured minutes within the outer deadline,
 actual suite/endurance UTC non-overlap, explicit case identity, source/binary
@@ -180,7 +183,7 @@ become zero. Saved derived results must match a fresh reconciliation. These
 reporting tools live outside the fixture's frozen input set; they do not alter
 runtime observations or the resource oracle.
 
-The final [disposable-copy guards](../evidence/gdi-attribution-20261018/guards-02/results.json)
+The final disposable-copy guards (`evidence/gdi-attribution-20261018/guards-02/results.json`)
 passed all 12 checks: two valid controls were accepted and ten corrupted controls
 were rejected. These cover incomplete seals, empty binary sets, missing or
 duplicate counters, missing exit status, forged PASS/derived qualification,
@@ -193,7 +196,7 @@ date conversion followed by string conversion lost timezone/fraction precision,
 so its forged overlap did not represent the intended UTC overlap. The auditor
 now reads dates as strings, requires explicit producer UTC timestamps and parses
 with `DateTimeOffset`; the guard constructs explicit UTC values. The
-[failed first guard log](../evidence/gdi-attribution-20261018/guards-01.log), earlier
+failed first guard log (`evidence/gdi-attribution-20261018/guards-01.log`), earlier
 scripts and reports remain intact. This correction changed no runtime source,
 measurement or threshold.
 

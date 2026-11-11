@@ -1,5 +1,8 @@
 # F16 inspector, F04 display map and F11 running-application rules
 
+> Paths under `evidence/` name local development evidence that is not tracked
+> in this repository, so they appear as plain paths rather than links.
+
 Work date: October 16, 2026, America/Denver. This batch preserves the existing
 uncommitted F02/F03/F05 implementation and its evidence. No reset, clean, broad
 staging, install, deployment, publication, live startup registration or physical
@@ -106,7 +109,7 @@ mode was added.
 ## Verification and review
 
 New evidence is isolated in
-[`evidence/inspector-map-background-20261016/`](../evidence/inspector-map-background-20261016/).
+`evidence/inspector-map-background-20261016/`.
 The initial sandbox attempt could not create private desktops: 26 native tests
 were **not run**, while policy/theme checks passed. Escalated execution used the
 same noninteractive runner and never switched to the operator's input desktop.
@@ -125,12 +128,12 @@ Final executed checks (the two full commands use the pinned repository recipe):
 
 | Check | Actual result | Evidence |
 |---|---|---|
-| `pwsh -NoProfile -File tools/build.ps1 -Configuration Release -Test` | **29/29 passed**, 102.54 s | [Summary](../evidence/inspector-map-background-20261016/final-release.log), [detail](../evidence/inspector-map-background-20261016/release-details.log), [JUnit](../evidence/inspector-map-background-20261016/release-results.xml) |
-| `pwsh -NoProfile -File tools/build.ps1 -Configuration Debug -Test` | **29/29 passed**, 109.21 s | [Summary](../evidence/inspector-map-background-20261016/final-debug.log), [detail](../evidence/inspector-map-background-20261016/debug-details.log), [JUnit](../evidence/inspector-map-background-20261016/debug-results.xml) |
+| `pwsh -NoProfile -File tools/build.ps1 -Configuration Release -Test` | **29/29 passed**, 102.54 s | Summary (`evidence/inspector-map-background-20261016/final-release.log`), detail (`evidence/inspector-map-background-20261016/release-details.log`), JUnit (`evidence/inspector-map-background-20261016/release-results.xml`) |
+| `pwsh -NoProfile -File tools/build.ps1 -Configuration Debug -Test` | **29/29 passed**, 109.21 s | Summary (`evidence/inspector-map-background-20261016/final-debug.log`), detail (`evidence/inspector-map-background-20261016/debug-details.log`), JUnit (`evidence/inspector-map-background-20261016/debug-results.xml`) |
 | Policy, both configurations | **117,665 assertions each**, 48 input/media/mute/poll combinations, eight virtual hours | Full-suite detail above |
-| `pwsh -NoProfile -File evidence/inspector-map-background-20261016/run-analysis.ps1` | Exit 0; zero warnings/findings; empty `DEFECTS`; production source hashes unchanged | [Log](../evidence/inspector-map-background-20261016/static-analysis.log), [XML](../evidence/inspector-map-background-20261016/static-analysis.xml), [hashes](../evidence/inspector-map-background-20261016/analysis-source-hashes.json) |
-| `pwsh -NoProfile -File tools/verify-pe.ps1 -Executable build/release/DAC.exe` and `build/debug/DAC.exe` | Both passed: AMD64 GUI, ASLR/DEP/high-entropy VA/CFG; 12 allowlisted Windows imports | [Release](../evidence/inspector-map-background-20261016/pe-release.json), [Debug](../evidence/inspector-map-background-20261016/pe-debug.json) |
-| `git diff --check`; final source/hash and result reconciliation | Passed; final implementation/tests match the verification manifest | [Result manifest](../evidence/inspector-map-background-20261016/verification.json), [source hashes](../evidence/inspector-map-background-20261016/verification-source-hashes.json), [reconciliation script](../evidence/inspector-map-background-20261016/summarize-verification.ps1) |
+| `pwsh -NoProfile -File evidence/inspector-map-background-20261016/run-analysis.ps1` | Exit 0; zero warnings/findings; empty `DEFECTS`; production source hashes unchanged | Log (`evidence/inspector-map-background-20261016/static-analysis.log`), XML (`evidence/inspector-map-background-20261016/static-analysis.xml`), hashes (`evidence/inspector-map-background-20261016/analysis-source-hashes.json`) |
+| `pwsh -NoProfile -File tools/verify-pe.ps1 -Executable build/release/DAC.exe` and `build/debug/DAC.exe` | Both passed: AMD64 GUI, ASLR/DEP/high-entropy VA/CFG; 12 allowlisted Windows imports | Release (`evidence/inspector-map-background-20261016/pe-release.json`), Debug (`evidence/inspector-map-background-20261016/pe-debug.json`) |
+| `git diff --check`; final source/hash and result reconciliation | Passed; final implementation/tests match the verification manifest | Result manifest (`evidence/inspector-map-background-20261016/verification.json`), source hashes (`evidence/inspector-map-background-20261016/verification-source-hashes.json`), reconciliation script (`evidence/inspector-map-background-20261016/summarize-verification.ps1`) |
 
 The new native group covers cached inspector opening/refresh without power or
 owner/lease changes, unchanged/changed/failed/partial/stale OS rescans, independent
@@ -164,7 +167,7 @@ wake/performance assertions were relaxed. The final full runs above pass; hidden
 timing samples still do not establish visible wake or endurance reliability.
 The final media-transition refinement avoids extra policy serialization on every
 timer refresh, retaining the existing polling work outside actual policy changes.
-See the [review record](../evidence/inspector-map-background-20261016/review.txt).
+See the review record (`evidence/inspector-map-background-20261016/review.txt`).
 
 ## Separate qualification checklist
 

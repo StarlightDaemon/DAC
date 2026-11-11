@@ -1,5 +1,8 @@
 # F03, F05 and F02 implementation and verification
 
+> Paths under `evidence/` name local development evidence that is not tracked
+> in this repository, so they appear as plain paths rather than links.
+
 Subsequent work: [F16/F04/F11](INSPECTOR_MAP_BACKGROUND.md) retains this feature
 batch and its evidence while migrating persistence to schema 5. The schema 4
 and 28-test results below describe this earlier batch, not a fresh current run.
@@ -9,7 +12,7 @@ Work date: 2026-10-16, America/Denver. Starting HEAD:
 README and untracked comparative review, catalog and implementation guidelines.
 Those changes were preserved. Current implementation is an uncommitted working
 tree addition; exact final source hashes and verification are retained in
-[`evidence/features-20261016/`](../evidence/features-20261016/).
+`evidence/features-20261016/`.
 
 F01 remains on hold. No external command protocol, new public CLI commands,
 network service, power-plan/system-awake request, brightness control, deployment,
