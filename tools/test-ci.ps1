@@ -29,11 +29,11 @@ function Write-Fixture([string]$Text) {
 $names = @(Get-ExpectedTests)
 Assert-TestNames $names; $script:checks++
 Expect-Rejection { Assert-TestNames @() }
-Expect-Rejection { Assert-TestNames $names[0..25] }
+Expect-Rejection { Assert-TestNames $names[0..($names.Count - 2)] }
 Expect-Rejection { Assert-TestNames ($names + 'unexpected-test') }
-$duplicate = @($names); $duplicate[26] = $duplicate[0]
+$duplicate = @($names); $duplicate[-1] = $duplicate[0]
 Expect-Rejection { Assert-TestNames $duplicate }
-$renamed = @($names); $renamed[26] = 'replacement-test'
+$renamed = @($names); $renamed[-1] = 'replacement-test'
 Expect-Rejection { Assert-TestNames $renamed }
 $cases = ($names | ForEach-Object { '<testcase name="' + $_ + '" status="run"></testcase>' }) -join ''
 $passing = '<testsuite>' + $cases + '</testsuite>'
