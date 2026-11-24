@@ -31,6 +31,7 @@ CI (`.github/workflows/windows-ci.yml`, on `main` and `feature/standalone-public
 - Main branch is `main`. Agent work goes on `<agent>/<task>` branches in their own worktrees. See Standing delegation v1 in AGENTS.md.
 - **Tests and development never touch the real desktop.** Automated tests use a private non-interactive desktop and simulated power operations. Never launch DAC on the user's input desktop, register login startup, modify an existing installation, run custom or downloaded screensavers, or exercise physical DDC/CI.
 - Hardware power control is unqualified on real monitors; don't claim otherwise in docs or code comments.
+- The real-hardware safety harness (`tools/safety-*.ps1`, `docs/REAL_HARDWARE_SAFETY.md`) is operator-run. Agents may read it and run its fixture tests (`tools/test-safety.ps1`, `tools/test-safety-observer.ps1`). They never run its Stage 1 or later steps, or `safety-preflight.ps1 -Capture`, on the owner's machine without the owner's approval for that exact action.
 - The package contains exactly the files in `tools/package-manifest.json`. Adding a packaged file means updating the manifest and the expected counts in the package and installer checks.
 - This repository is public and CI audits it for privacy. Never commit absolute local paths, usernames, tool or cache folders, tokens, raw logs or local receipts. `build/`, `out/`, `packages/`, `.tools/` and `.deps/` are ignored and must stay that way.
 - No `Co-Authored-By` or other agent attribution lines in commits; the `commit-msg` hook enforces this. Never bypass it.
@@ -43,6 +44,7 @@ There is no central open-loops file. Current state lives in `docs/`:
 - `FEATURE_PARITY.md`: what exists compared with the predecessor.
 - `FEATURE_IMPLEMENTATION.md` and `INSPECTOR_MAP_BACKGROUND.md`: what is implemented and what acceptance remains.
 - `COMPARATIVE_REVIEW.md` and `FEATURE_CATALOG.json`: the ranked roadmap.
+- `REAL_HARDWARE_SAFETY.md` and `SAFETY_VERIFICATION.md`: the operator runbook for real-hardware qualification, its pinned candidate, and what its tools have verified.
 
 Read `IMPLEMENTATION_GUIDELINES.md` before implementing a feature.
 
